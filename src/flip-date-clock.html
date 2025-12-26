@@ -236,7 +236,7 @@
           .viewbox(0,0,layoutW,layoutH)
           .size(layoutW, layoutH);
 
-        dateSvg.rect(layoutW, layoutH).fill("none").opacity(0);
+        // layout bbox rect removed to allow tight fitting by content
 
         yearText = dateSvg.text("2025")
           .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
