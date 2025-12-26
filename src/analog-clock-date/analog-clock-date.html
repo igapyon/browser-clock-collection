@@ -115,16 +115,21 @@
 
     function computeBase(){
       const size = Math.min(window.innerWidth, window.innerHeight);
-      return Math.max(cfg.baseMin, Math.floor(size * cfg.baseScale));
+      const cssBase = Math.max(cfg.baseMin, Math.floor(size * cfg.baseScale));
+      const dpr = window.devicePixelRatio || 1;
+      const base = Math.round(cssBase * dpr);
+      return { base, cssBase, dpr };
     }
 
-    function applyBase(base){
-      const scale = base / 400;
+    function applyBase(baseInfo){
+      const scale = baseInfo.base / 400;
       return {
-        base,
+        base: baseInfo.base,
         scale,
-        cx: base / 2,
-        cy: base / 2
+        cx: baseInfo.base / 2,
+        cy: baseInfo.base / 2,
+        cssBase: baseInfo.cssBase,
+        dpr: baseInfo.dpr
       };
     }
 
