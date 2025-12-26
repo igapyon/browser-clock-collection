@@ -33,26 +33,26 @@
   <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js"></script>
 
   <script>
-    /* ===== テーマ ===== */
-    const theme = {
-      frame:"#8a4f3a",
-      dial:"#f7f7f5",
-      text:"#101010",
-      dotMinor:"rgba(0,0,0,0.35)",
-      dotMajor:"#1a1a1a",
-      hour:"#111",
-      minute:"#111",
-      second:"#9aa0a6",
-      dateText:"rgba(0,0,0,0.70)",
-      dateSub:"rgba(0,0,0,0.55)",
-      sat:"#1f4fd8",
-      sun:"#d32f2f"
-    };
-
     const weekJP = ["日","月","火","水","木","金","土"];
     const pad2 = (n) => String(n).padStart(2,"0");
 
     const cfg = Object.freeze({
+      // Theme
+      theme: Object.freeze({
+        frame:"#8a4f3a",
+        dial:"#f7f7f5",
+        text:"#101010",
+        dotMinor:"rgba(0,0,0,0.35)",
+        dotMajor:"#1a1a1a",
+        hour:"#111",
+        minute:"#111",
+        second:"#9aa0a6",
+        dateText:"rgba(0,0,0,0.70)",
+        dateSub:"rgba(0,0,0,0.55)",
+        sat:"#1f4fd8",
+        sun:"#d32f2f"
+      }),
+
       // Base size for proportional scaling
       base: 400,
       baseMin: 240,
@@ -106,6 +106,8 @@
         clampMargin: 10
       })
     });
+
+    const theme = cfg.theme;
 
     const draw = SVG()
       .addTo("#mount")
