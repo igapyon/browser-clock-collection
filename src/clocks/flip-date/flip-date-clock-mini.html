@@ -14,7 +14,7 @@
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
     }
     #mount{
-      width:min(92vw, 140px);
+      width:min(92vw, 42px);
       aspect-ratio: 560 / 300;
     }
   </style>
@@ -41,14 +41,14 @@ class FlipUnit{
     this.opticalNudge = opts.opticalNudge ?? 5;
 
     draw.rect(w,h).move(x+2,y+3)
-      .fill("rgba(0,0,0,.25)").radius(10).opacity(.35);
+      .fill("rgba(0,0,0,.25)").radius(6).opacity(.35);
 
     this.card=draw.group();
-    this.card.rect(w,h).move(x,y).fill("#1f1f1f").radius(10);
-    this.card.rect(w,this.half).move(x,y).fill("#262626").radius(10);
+    this.card.rect(w,h).move(x,y).fill("#1f1f1f").radius(6);
+    this.card.rect(w,this.half).move(x,y).fill("#262626").radius(6);
 
     const seamY = y + this.half + 0.5;
-    this.card.line(x+10,seamY,x+w-10,seamY)
+    this.card.line(x+6,seamY,x+w-6,seamY)
       .stroke({width:1,color:"rgba(255,255,255,.1)"});
 
     this.clipTop=draw.clip().add(draw.rect(w,this.half).move(x,y));
@@ -58,7 +58,7 @@ class FlipUnit{
     this.botStatic=draw.group().clipWith(this.clipBot);
     this.flap=draw.group().clipWith(this.clipTop);
 
-    this.font={ family:"ui-monospace, Menlo, Consolas, monospace", size:64, weight:700 };
+    this.font={ family:"ui-monospace, Menlo, Consolas, monospace", size:38, weight:700 };
 
     // 計測用（不可視）
     this.measure = draw.text("00")
@@ -157,11 +157,11 @@ draw.rect(W,H).fill("#f2f2f2");
 const yearText=draw.text("2025")
   .font({family:"Georgia,'Times New Roman',serif",size:44,weight:700})
   .fill("#1a1a1a")
-  .attr({x:W/2,y:52,"text-anchor":"middle","dominant-baseline":"middle"});
+  .attr({x:W/2,y:78,"text-anchor":"middle","dominant-baseline":"middle"});
 
-const cardW=150,cardH=120,gap=24;
+const cardW=90,cardH=72,gap=14;
 const x0=(W-(cardW*2+gap))/2;
-const y0=90;
+const y0=128;
 
 const OPTICAL_NUDGE = 5;
 
