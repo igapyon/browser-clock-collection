@@ -474,23 +474,51 @@
     const dateMini = createFlipDateMini(draw, { dateScale: 0.3 });
 
     /* ===== 針 ===== */
-    const hands = draw.group()
-      .attr({style:"filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))"});
+    function createHands(draw){
+      const hands = draw.group()
+        .attr({style:"filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))"});
 
-    function makeHand(color){
-      return hands.rect(0, 0).fill(color);
+      const hHand = hands.rect(0, 0).fill(theme.hour);
+      const mHand = hands.rect(0, 0).fill(theme.minute);
+
+      const sHand = hands.group();
+      const sMain = sHand.rect(0, 0).fill(theme.second);
+      const sTail = sHand.rect(0, 0).fill(theme.second);
+
+      const centerDot = draw.circle(0).center(0,0)
+        .fill("#cfcfcf")
+        .stroke({width:0, color:"rgba(0,0,0,.25)"});
+
+      function apply(scale, cx, cy){
+        hHand.size(cfg.hand.hourW * scale, cfg.hand.hourL * scale)
+          .move(cx - (cfg.hand.hourW * scale)/2, cy - cfg.hand.hourL * scale)
+          .radius(2 * scale);
+
+        mHand.size(cfg.hand.minW * scale, cfg.hand.minL * scale)
+          .move(cx - (cfg.hand.minW * scale)/2, cy - cfg.hand.minL * scale)
+          .radius(2 * scale);
+
+        sMain.size(cfg.hand.secW * scale, cfg.hand.secL * scale)
+          .move(cx - (cfg.hand.secW * scale)/2, cy - (cfg.hand.secL - 10) * scale);
+
+        sTail.size(cfg.hand.secTailW * scale, cfg.hand.secTailL * scale)
+          .move(cx - (cfg.hand.secTailW * scale)/2, cy + cfg.hand.secTailOffsetY * scale);
+
+        centerDot.size(cfg.centerDot * scale)
+          .center(cx,cy)
+          .stroke({width:1 * scale, color:"rgba(0,0,0,.25)"});
+      }
+
+      function rotate(hrDeg, minDeg, secDeg, cx, cy){
+        hHand.untransform().rotate(hrDeg,  cx, cy);
+        mHand.untransform().rotate(minDeg, cx, cy);
+        sHand.untransform().rotate(secDeg,  cx, cy);
+      }
+
+      return { apply, rotate };
     }
 
-    const hHand = makeHand(theme.hour);
-    const mHand = makeHand(theme.minute);
-
-    const sHand = hands.group();
-    const sMain = sHand.rect(0, 0).fill(theme.second);
-    const sTail = sHand.rect(0, 0).fill(theme.second);
-
-    const centerDot = draw.circle(0).center(0,0)
-      .fill("#cfcfcf")
-      .stroke({width:0, color:"rgba(0,0,0,.25)"});
+    const hands = createHands(draw);
 
     let lastAngles = { hrDeg: 0, minDeg: 0 };
 
@@ -501,23 +529,7 @@
       drawFrame();
       drawTicksAndNumbers();
 
-      hHand.size(cfg.hand.hourW * scale, cfg.hand.hourL * scale)
-        .move(cx - (cfg.hand.hourW * scale)/2, cy - cfg.hand.hourL * scale)
-        .radius(2 * scale);
-
-      mHand.size(cfg.hand.minW * scale, cfg.hand.minL * scale)
-        .move(cx - (cfg.hand.minW * scale)/2, cy - cfg.hand.minL * scale)
-        .radius(2 * scale);
-
-      sMain.size(cfg.hand.secW * scale, cfg.hand.secL * scale)
-        .move(cx - (cfg.hand.secW * scale)/2, cy - (cfg.hand.secL - 10) * scale);
-
-      sTail.size(cfg.hand.secTailW * scale, cfg.hand.secTailL * scale)
-        .move(cx - (cfg.hand.secTailW * scale)/2, cy + cfg.hand.secTailOffsetY * scale);
-
-      centerDot.size(cfg.centerDot * scale)
-        .center(cx,cy)
-        .stroke({width:1 * scale, color:"rgba(0,0,0,.25)"});
+      hands.apply(scale, cx, cy);
 
       dateMini.setScale(scale);
       dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
@@ -550,9 +562,7 @@
       const minDeg = min * 6;
       lastAngles = { hrDeg, minDeg };
 
-      hHand.untransform().rotate(hrDeg,  metrics.cx, metrics.cy);
-      mHand.untransform().rotate(minDeg, metrics.cx, metrics.cy);
-      sHand.untransform().rotate(sec*6,  metrics.cx, metrics.cy);
+      hands.rotate(hrDeg, minDeg, sec * 6, metrics.cx, metrics.cy);
 
       dateMini.placeDateOutsideAngle(hrDeg, minDeg);
       dateMini.updateDateIfNeeded(d);
