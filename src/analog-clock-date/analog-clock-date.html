@@ -390,7 +390,7 @@
 
       build();
 
-      function setDow(d){
+      function setDowLabel(d){
         const w=weekJP[d.getDay()];
         dowText.text(w);
         if(w==="土") dowText.fill(theme.sat);
@@ -398,20 +398,20 @@
         else dowText.fill("rgba(0,0,0,.65)");
       }
 
-      function setAll(d){
+      function setAllFields(d){
         yearText.text(d.getFullYear());
         mm.setValue(pad2(d.getMonth()+1));
         dd.setValue(pad2(d.getDate()));
-        setDow(d);
+        setDowLabel(d);
       }
 
       let lastDateKey = null;
       const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 
-      function updateDateOnChange(d){
+      function updateDateIfNeeded(d){
         const k = dateKey(d);
         if(lastDateKey === null){
-          setAll(d);
+          setAllFields(d);
           lastDateKey = k;
           return;
         }
@@ -422,7 +422,7 @@
             setTimeout(()=>mm.flipTo(pad2(d.getMonth()+1)),220);
           }
           yearText.text(d.getFullYear());
-          setDow(d);
+          setDowLabel(d);
           lastDateKey = k;
         }
       }
@@ -455,7 +455,7 @@
       }
 
       return {
-        updateDateOnChange,
+        updateDateIfNeeded,
         placeDateOutsideAngle,
         setScale(scale){
           dateInner.untransform().scale(scale * DATE_SCALE);
@@ -465,7 +465,7 @@
           lastDateKey = null;
         },
         setAllNow(d){
-          setAll(d);
+          setAllFields(d);
           lastDateKey = dateKey(d);
         }
       };
@@ -550,7 +550,7 @@
       sHand.untransform().rotate(sec*6,  metrics.cx, metrics.cy);
 
       dateMini.placeDateOutsideAngle(hrDeg, minDeg);
-      dateMini.updateDateOnChange(d);
+      dateMini.updateDateIfNeeded(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
