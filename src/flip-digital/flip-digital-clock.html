@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flip Clock (24h) - svg.js</title>
+  <style>
+    body{
+      margin:0;
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      background:#ececec;
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
+    }
+    #mount{
+      width:min(92vw, 720px);
+      aspect-ratio: 720 / 240;
+    }
+  </style>
+</head>
+<body>
+  <div id="mount"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js"></script>
+  <script>
+    const pad2 = (n) => String(n).padStart(2,"0");
+
+    function easeInOutCubic(t){
+      return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+    }
+
+    class FlipUnit{
+      constructor(draw, x, y, w, h, opts={}){
+        this.draw = draw;
+        this.x=x; this.y=y; this.w=w; this.h=h;
+        this.half=h/2;
+        this.value="00";
+        this.isFlipping=false;
+
+        this.style = {
+          card: opts.card ?? "#1f1f1f",
+          cardHi: opts.cardHi ?? "#262626",
+          seam: opts.seam ?? "rgba(255,255,255,0.10)",
+          text: opts.text ?? "#f3f3f3",
+          shadow: opts.shadow ?? "rgba(0,0,0,0.25)",
+          radius: opts.radius ?? 12
+        };
+
+        // ★これが「もっと下げる」ノブ（まず +6 を入れておく）
+        // まだ上に見えるなら 7, 8… と増やしてOK
+        this.opticalNudge = opts.opticalNudge ?? 6;
+
+        // shadow
+        draw.rect(w,h).move(x+2,y+3)
+          .fill(this.style.shadow).radius(this.style.radius).opacity(0.35);
+
+        // card
+        this.card = draw.group();
+        this.card.rect(w,h).move(x,y).fill(this.style.card).radius(this.style.radius);
+        this.card.rect(w,this.half).move(x,y).fill(this.style.cardHi).radius(this.style.radius);
+
+        // seam line（0.5pxでピクセルに乗せる）
+        const seamY = y + this.half + 0.5;
+        this.card.line(x+12, seamY, x+w-12, seamY)
+          .stroke({width:1, color:this.style.seam});
+
+        // clips
+        this.clipTop = draw.clip().add(draw.rect(w,this.half).move(x,y));
+        this.clipBot = draw.clip().add(draw.rect(w,this.half).move(x,y+this.half));
+
+        this.topStatic = draw.group().clipWith(this.clipTop);
+        this.botStatic = draw.group().clipWith(this.clipBot);
+        this.flap      = draw.group().clipWith(this.clipTop);
+
+        this.font = {
+          family:"ui-monospace, Menlo, Consolas, monospace",
+          size: opts.fontSize ?? 76,
+          weight: 800
+        };
+
+        // 計測用（見えない）
+        this.measure = draw.text("00")
+          .font(this.font)
+          .fill("none")
+          .opacity(0)
+          .attr({
+            x: this.x + this.w/2,
+            y: 0,
+            "text-anchor":"middle"
+          });
+
+        this.topText  = this._txt(this.topStatic, this.value);
+        this.botText  = this._txt(this.botStatic, this.value);
+        this.flapText = this._txt(this.flap,      this.value);
+
+        this._setText(this.topText,  this.value);
+        this._setText(this.botText,  this.value);
+        this._setText(this.flapText, this.value);
+      }
+
+      _txt(g, str){
+        return g.text(str)
+          .font(this.font)
+          .fill(this.style.text)
+          .attr({
+            x: this.x + this.w/2,
+            y: this.y + this.h/2,
+            "text-anchor":"middle"
+          });
+      }
+
+      _calcCenteredY(str){
+        const cx = this.x + this.w/2;
+        const targetCy = this.y + this.h/2;
+
+        this.measure.text(str);
+        this.measure.attr({ x: cx, y: 0 });
+
+        const b = this.measure.bbox();
+        const bboxCenterY = b.y + b.height/2;
+
+        // bbox中心 → カード中心 に合わせた baseline y
+        let yNeeded = targetCy - bboxCenterY;
+
+        // ★光学補正（下に押す）
+        yNeeded += this.opticalNudge;
+
+        return yNeeded;
+      }
+
+      _setText(textEl, str){
+        const y = this._calcCenteredY(str);
+        textEl.text(str);
+        textEl.attr({ y });
+      }
+
+      setValue(v){
+        this.value = v;
+        this._setText(this.topText,  v);
+        this._setText(this.botText,  v);
+        this._setText(this.flapText, v);
+      }
+
+      flipTo(next, dur=650){
+        if(this.isFlipping || next === this.value) return;
+        this.isFlipping = true;
+
+        const cur = this.value;
+
+        // 開始：current 固定
+        this._setText(this.flapText, cur);
+        this._setText(this.topText,  cur);
+        this._setText(this.botText,  cur);
+
+        const start = performance.now();
+        const cx = this.x + this.w/2;
+        const hingeY = this.y + this.half;
+
+        let switched = false;
+
+        const step = (now) => {
+          const t = Math.min(1, (now - start)/dur);
+          const e = easeInOutCubic(t);
+
+          this.flap.transform({
+            translateX: cx,
+            translateY: hingeY,
+            scaleY: 1 - e,
+            scaleX: 1
+          });
+
+          if(!switched && t > 0.52){
+            switched = true;
+            this._setText(this.topText,  next);
+            this._setText(this.botText,  next);
+            this._setText(this.flapText, next);
+          }
+
+          if(t < 1) requestAnimationFrame(step);
+          else{
+            this.flap.untransform();
+            this._setText(this.flapText, next);
+            this.value = next;
+            this.isFlipping = false;
+          }
+        };
+
+        requestAnimationFrame(step);
+      }
+    }
+
+    /* ===== レイアウト ===== */
+    const W = 720, H = 240;
+    const draw = SVG().addTo("#mount").viewbox(0,0,W,H).size("100%","100%");
+    draw.rect(W,H).fill("#f2f2f2");
+
+    const cardW = 170, cardH = 140;
+    const gapCard = 6;
+    const sepGap  = 3;
+    const sepW = 18;
+
+    const totalW = cardW + gapCard + sepGap + sepW + sepGap + gapCard
+                        + cardW + gapCard + sepGap + sepW + sepGap + gapCard
+                        + cardW;
+
+    const xStart = (W - totalW)/2;
+    const y0 = 52;
+
+    const xHH   = xStart;
+    const xSep1 = xHH + cardW + gapCard + sepGap + sepW/2;
+    const xMM   = xHH + cardW + gapCard + sepGap + sepW + sepGap + gapCard;
+    const xSep2 = xMM + cardW + gapCard + sepGap + sepW/2;
+    const xSS   = xMM + cardW + gapCard + sepGap + sepW + sepGap + gapCard;
+
+    // ★一括で調整できる（さらに欲しければ 6→7→8…）
+    const OPTICAL_NUDGE = 6;
+
+    const HH = new FlipUnit(draw, xHH, y0, cardW, cardH, { opticalNudge: OPTICAL_NUDGE });
+    const MM = new FlipUnit(draw, xMM, y0, cardW, cardH, { opticalNudge: OPTICAL_NUDGE });
+    const SS = new FlipUnit(draw, xSS, y0, cardW, cardH, { opticalNudge: OPTICAL_NUDGE });
+
+    // ":" セパレータ
+    const sepStyle = { family:"ui-monospace, Menlo, Consolas, monospace", size: 64, weight: 700 };
+    draw.text(":").font(sepStyle).fill("rgba(0,0,0,0.55)")
+      .attr({ x: xSep1, y: y0 + cardH/2, "text-anchor":"middle", "dominant-baseline":"middle" });
+    draw.text(":").font(sepStyle).fill("rgba(0,0,0,0.55)")
+      .attr({ x: xSep2, y: y0 + cardH/2, "text-anchor":"middle", "dominant-baseline":"middle" });
+
+    function setAllFromDate(d){
+      HH.setValue(pad2(d.getHours()));
+      MM.setValue(pad2(d.getMinutes()));
+      SS.setValue(pad2(d.getSeconds()));
+    }
+    setAllFromDate(new Date());
+
+    /* ===== 更新（秒境界合わせ／連鎖） ===== */
+    let last = null;
+    function tickAligned(){
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const s = now.getSeconds();
+
+      if(!last){
+        last = {h,m,s};
+      } else {
+        if(s !== last.s) SS.flipTo(pad2(s));
+        else SS.setValue(pad2(s));
+
+        if(m !== last.m) setTimeout(() => MM.flipTo(pad2(m)), 180);
+        else MM.setValue(pad2(m));
+
+        if(h !== last.h) setTimeout(() => HH.flipTo(pad2(h)), 360);
+        else HH.setValue(pad2(h));
+
+        last = {h,m,s};
+      }
+
+      setTimeout(tickAligned, 1000 - now.getMilliseconds());
+    }
+    tickAligned();
+  </script>
+</body>
+</html>
