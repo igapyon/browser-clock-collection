@@ -55,7 +55,6 @@
         layoutW: 560,
         layoutH: 300,
         scale: 1.0,
-        fillRatio: 1.0,
         yearFont: 44,
         yearY: 78,
         cardW: 90,
@@ -218,8 +217,6 @@
 
     function createFlipDateMini(draw, opts = {}){
       const cfgDate = cfg.date;
-      const DATE_LAYOUT_W = cfgDate.layoutW;
-      const DATE_LAYOUT_H = cfgDate.layoutH;
       const DATE_SCALE = opts.dateScale ?? cfgDate.scale;
 
       const dateRoot = draw.group();
@@ -228,32 +225,38 @@
       let mm;
       let dd;
       let dowText;
+      let layoutW = cfgDate.layoutW;
+      let layoutH = cfgDate.layoutH;
 
       function build(){
         dateRoot.clear();
         dateInner = dateRoot.group();
 
         const dateSvg = dateInner.nested()
-          .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
-          .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
+          .viewbox(0,0,layoutW,layoutH)
+          .size(layoutW, layoutH);
 
-        dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+        dateSvg.rect(layoutW, layoutH).fill("none").opacity(0);
+
+        const scaleK = layoutW / cfgDate.layoutW;
+        const yearY = layoutH * (cfgDate.yearY / cfgDate.layoutH);
+        const cardY = layoutH * (cfgDate.cardY / cfgDate.layoutH);
 
         yearText = dateSvg.text("2025")
-          .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
+          .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont * scaleK,weight:700})
           .fill("#1a1a1a")
           .attr({
-            x: DATE_LAYOUT_W/2,
-            y: cfgDate.yearY,
+            x: layoutW/2,
+            y: yearY,
             "text-anchor":"middle",
             "dominant-baseline":"middle"
           });
 
-        const cardW = cfgDate.cardW;
-        const cardH = cfgDate.cardH;
-        const gap = cfgDate.cardGap;
-        const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
-        const y0 = cfgDate.cardY;
+        const cardW = cfgDate.cardW * scaleK;
+        const cardH = cfgDate.cardH * scaleK;
+        const gap = cfgDate.cardGap * scaleK;
+        const x0=(layoutW-(cardW*2+gap))/2;
+        const y0 = cardY;
 
         mm = new FlipUnit(dateSvg,x0,y0,cardW,cardH);
         dd = new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH);
@@ -261,13 +264,13 @@
         dowText = dateSvg.text("金")
           .font({
             family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-            size:cfgDate.dowFont,
+            size:cfgDate.dowFont * scaleK,
             weight:600
           })
           .fill("rgba(0,0,0,.65)")
           .attr({
-            x: x0 + cardW * 2 + gap + cfgDate.dowX,
-            y: y0 + cardH/2 + cfgDate.dowY,
+            x: x0 + cardW * 2 + gap + cfgDate.dowX * scaleK,
+            y: y0 + cardH/2 + cfgDate.dowY * scaleK,
             "text-anchor":"start",
             "dominant-baseline":"middle"
           });
@@ -338,6 +341,12 @@
         setScale(scale){
           dateInner.untransform().scale(scale * DATE_SCALE);
         },
+        setLayout(nextW, nextH){
+          layoutW = nextW;
+          layoutH = nextH;
+          build();
+          lastDateKey = null;
+        },
         rebuild(){
           build();
           lastDateKey = null;
@@ -355,13 +364,13 @@
       const { baseW, baseH, cx, cy } = metrics;
       draw.viewbox(0,0,baseW,baseH);
 
-      // Scale to fill the window while avoiding clipping.
-      dateMini.setScale(1);
-      dateMini.placeCentered(cx, cy);
-      const box = dateMini.getBBox();
-      const targetW = baseW * cfg.date.fillRatio;
-      const targetH = baseH * cfg.date.fillRatio;
-      const fitScale = Math.min(targetW / box.width, targetH / box.height);
+      // Match layout ratio to the window, then scale to fill without distortion.
+      const aspect = baseW / baseH;
+      const layoutW = cfg.date.layoutW;
+      const layoutH = layoutW / aspect;
+      const fitScale = baseW / layoutW;
+
+      dateMini.setLayout(layoutW, layoutH);
       dateMini.setScale(fitScale);
       dateMini.placeCentered(cx, cy);
     }
