@@ -96,19 +96,33 @@
       }
     };
 
-    const BASE = cfg.base;
-    const S = BASE / 400;
     const draw = SVG()
       .addTo("#mount")
-      .viewbox(0,0,BASE,BASE)
       .size("100%","100%");
 
-    const cx = BASE / 2;
-    const cy = BASE / 2;
+    function computeBase(){
+      const size = Math.min(window.innerWidth, window.innerHeight);
+      return Math.max(240, Math.floor(size * 0.9));
+    }
+
+    function applyBase(base){
+      const scale = base / 400;
+      return {
+        base,
+        scale,
+        cx: base / 2,
+        cy: base / 2
+      };
+    }
+
+    let metrics = applyBase(computeBase());
 
     const polar = (deg, r) => {
       const a = deg * Math.PI / 180;
-      return { x: cx + Math.sin(a) * r, y: cy - Math.cos(a) * r };
+      return {
+        x: metrics.cx + Math.sin(a) * r,
+        y: metrics.cy - Math.cos(a) * r
+      };
     };
 
     const normDeg = d => ((d % 360) + 360) % 360;
@@ -120,59 +134,68 @@
       return d;
     };
 
-    /* ===== フレーム ===== */
-    draw.circle(BASE).center(cx,cy).fill(theme.frame);
-    draw.circle(BASE - cfg.frameInset * S).center(cx,cy).fill("none")
-      .stroke({width:cfg.frameHighlight * S, color:"rgba(255,255,255,.1)"});
-    draw.circle(BASE - cfg.frameInset * S).center(cx,cy).fill("none")
-      .stroke({width:cfg.frameShadow * S, color:"rgba(0,0,0,.22)"}).opacity(.35);
-
-    /* ===== 文字盤 ===== */
-    const dialR = cfg.dialR * S;
-    draw.circle(dialR*2).center(cx,cy)
-      .fill(theme.dial)
-      .stroke({width:1, color:"rgba(0,0,0,.1)"});
-
-    /* ===== 目盛り ===== */
+    const gFrame = draw.group();
     const ticks = draw.group();
-    for(let i=0;i<60;i++){
-      const p = polar(i*6, dialR * cfg.tickRadiusRatio);
-      ticks.circle(i%5===0 ? cfg.tickMajor * S : cfg.tickMinor * S)
-        .center(p.x, p.y)
-        .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
+    const nums = draw.group();
+    let dialR = 0;
+
+    function drawFrame(){
+      gFrame.clear();
+      const { base, scale, cx, cy } = metrics;
+      dialR = cfg.dialR * scale;
+
+      gFrame.circle(base).center(cx,cy).fill(theme.frame);
+      gFrame.circle(base - cfg.frameInset * scale).center(cx,cy).fill("none")
+        .stroke({width:cfg.frameHighlight * scale, color:"rgba(255,255,255,.1)"});
+      gFrame.circle(base - cfg.frameInset * scale).center(cx,cy).fill("none")
+        .stroke({width:cfg.frameShadow * scale, color:"rgba(0,0,0,.22)"}).opacity(.35);
+
+      gFrame.circle(dialR*2).center(cx,cy)
+        .fill(theme.dial)
+        .stroke({width:1 * scale, color:"rgba(0,0,0,.1)"});
     }
 
-    /* ===== 数字 ===== */
-    const nums = draw.group();
-    const numberRadius = dialR * cfg.numberRadiusRatio;
-    const fontSize = cfg.numberFont * S;
-    const globalDy = -fontSize * 0.05;
-    const tightK = cfg.numberTightK;
-    const dx = fontSize * tightK;
+    function drawTicksAndNumbers(){
+      ticks.clear();
+      nums.clear();
+      const { scale } = metrics;
+      const numberRadius = dialR * cfg.numberRadiusRatio;
+      const fontSize = cfg.numberFont * scale;
+      const globalDy = -fontSize * 0.05;
+      const tightK = cfg.numberTightK;
+      const dx = fontSize * tightK;
 
-    function drawNumber(n, x, y){
-      const yy = y + globalDy;
-      if(n < 10){
-        nums.text(String(n))
+      function drawNumber(n, x, y){
+        const yy = y + globalDy;
+        if(n < 10){
+          nums.text(String(n))
+            .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+            .fill(theme.text)
+            .attr({x, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
+          return;
+        }
+        const s = String(n);
+        nums.text(s[0])
           .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
           .fill(theme.text)
-          .attr({x, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-        return;
+          .attr({x:x-dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
+        nums.text(s[1])
+          .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+          .fill(theme.text)
+          .attr({x:x+dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
       }
-      const s = String(n);
-      nums.text(s[0])
-        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
-        .fill(theme.text)
-        .attr({x:x-dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-      nums.text(s[1])
-        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
-        .fill(theme.text)
-        .attr({x:x+dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-    }
 
-    for(let n=1;n<=12;n++){
-      const p = polar((n%12)*30, numberRadius);
-      drawNumber(n, p.x, p.y);
+      for(let i=0;i<60;i++){
+        const p = polar(i*6, dialR * cfg.tickRadiusRatio);
+        ticks.circle(i%5===0 ? cfg.tickMajor * scale : cfg.tickMinor * scale)
+          .center(p.x, p.y)
+          .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
+      }
+
+      for(let n=1;n<=12;n++){
+        const p = polar((n%12)*30, numberRadius);
+        drawNumber(n, p.x, p.y);
+      }
     }
 
     /* ===== Flip Date Mini（外角側） ===== */
@@ -300,51 +323,62 @@
     function createFlipDateMini(draw, opts = {}){
       const DATE_LAYOUT_W = cfg.date.layoutW;
       const DATE_LAYOUT_H = cfg.date.layoutH;
-      const DATE_SCALE = (opts.dateScale ?? cfg.date.scale) * S;
+      const DATE_SCALE = opts.dateScale ?? cfg.date.scale;
 
       const dateRoot = draw.group();
-      const dateInner = dateRoot.group().scale(DATE_SCALE);
+      let dateInner;
+      let yearText;
+      let mm;
+      let dd;
+      let dowText;
 
-      const dateSvg = dateInner.nested()
-        .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
-        .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
+      function build(){
+        dateRoot.clear();
+        dateInner = dateRoot.group();
 
-      dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+        const dateSvg = dateInner.nested()
+          .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
+          .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
 
-      const yearText = dateSvg.text("2025")
-        .font({family:"Georgia,'Times New Roman',serif",size:cfg.date.yearFont * S,weight:700})
-        .fill("#1a1a1a")
-        .attr({
-          x: DATE_LAYOUT_W/2,
-          y: cfg.date.yearY * S,
-          "text-anchor":"middle",
-          "dominant-baseline":"middle"
-        });
+        dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
 
-      const cardW = cfg.date.cardW * S;
-      const cardH = cfg.date.cardH * S;
-      const gap = cfg.date.cardGap * S;
-      const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
-      const y0 = cfg.date.cardY * S;
+        yearText = dateSvg.text("2025")
+          .font({family:"Georgia,'Times New Roman',serif",size:cfg.date.yearFont,weight:700})
+          .fill("#1a1a1a")
+          .attr({
+            x: DATE_LAYOUT_W/2,
+            y: cfg.date.yearY,
+            "text-anchor":"middle",
+            "dominant-baseline":"middle"
+          });
 
-      const OPTICAL_NUDGE = cfg.date.opticalNudge;
+        const cardW = cfg.date.cardW;
+        const cardH = cfg.date.cardH;
+        const gap = cfg.date.cardGap;
+        const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
+        const y0 = cfg.date.cardY;
 
-      const mm=new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
-      const dd=new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+        const OPTICAL_NUDGE = cfg.date.opticalNudge;
 
-      const dowText=dateSvg.text("金")
-        .font({
-          family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-          size:cfg.date.dowFont * S,
-          weight:600
-        })
-        .fill("rgba(0,0,0,.65)")
-        .attr({
-          x: x0 + cardW * 2 + gap + cfg.date.dowX * S,
-          y: y0 + cardH/2 + cfg.date.dowY * S,
-          "text-anchor":"start",
-          "dominant-baseline":"middle"
-        });
+        mm = new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+        dd = new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+
+        dowText = dateSvg.text("金")
+          .font({
+            family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
+            size:cfg.date.dowFont,
+            weight:600
+          })
+          .fill("rgba(0,0,0,.65)")
+          .attr({
+            x: x0 + cardW * 2 + gap + cfg.date.dowX,
+            y: y0 + cardH/2 + cfg.date.dowY,
+            "text-anchor":"start",
+            "dominant-baseline":"middle"
+          });
+      }
+
+      build();
 
       function setDow(d){
         const w=weekJP[d.getDay()];
@@ -389,8 +423,8 @@
 
         if(b.x < margin) dx = margin - b.x;
         if(b.y < margin) dy = margin - b.y;
-        if(b.x2 > BASE - margin) dx = (BASE - margin) - b.x2;
-        if(b.y2 > BASE - margin) dy = (BASE - margin) - b.y2;
+        if(b.x2 > metrics.base - margin) dx = (metrics.base - margin) - b.x2;
+        if(b.y2 > metrics.base - margin) dy = (metrics.base - margin) - b.y2;
 
         if(dx || dy) dateRoot.dmove(dx, dy);
       }
@@ -412,7 +446,18 @@
 
       return {
         updateDateOnChange,
-        placeDateOutsideAngle
+        placeDateOutsideAngle,
+        setScale(scale){
+          dateInner.untransform().scale(scale * DATE_SCALE);
+        },
+        rebuild(){
+          build();
+          lastDateKey = null;
+        },
+        setAllNow(d){
+          setAll(d);
+          lastDateKey = dateKey(d);
+        }
       };
     }
 
@@ -422,27 +467,64 @@
     const hands = draw.group()
       .attr({style:"filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))"});
 
-    function makeHand(w, l, color, radius=0){
-      return hands.rect(w, l)
-        .move(cx - w/2, cy - l)
-        .fill(color)
-        .radius(radius);
+    function makeHand(color){
+      return hands.rect(0, 0).fill(color);
     }
 
-    const hHand = makeHand(cfg.hand.hourW * S, cfg.hand.hourL * S, theme.hour, 2 * S);
-    const mHand = makeHand(cfg.hand.minW * S, cfg.hand.minL * S, theme.minute, 2 * S);
+    const hHand = makeHand(theme.hour);
+    const mHand = makeHand(theme.minute);
 
     const sHand = hands.group();
-    sHand.rect(cfg.hand.secW * S, cfg.hand.secL * S)
-      .move(cx - (cfg.hand.secW / 2) * S, cy - (cfg.hand.secL - 10) * S)
-      .fill(theme.second);
-    sHand.rect(cfg.hand.secTailW * S, cfg.hand.secTailL * S)
-      .move(cx - (cfg.hand.secTailW / 2) * S, cy + cfg.hand.secTailOffsetY * S)
-      .fill(theme.second);
+    const sMain = sHand.rect(0, 0).fill(theme.second);
+    const sTail = sHand.rect(0, 0).fill(theme.second);
 
-    draw.circle(cfg.centerDot * S).center(cx,cy)
+    const centerDot = draw.circle(0).center(0,0)
       .fill("#cfcfcf")
-      .stroke({width:1 * S, color:"rgba(0,0,0,.25)"});
+      .stroke({width:0, color:"rgba(0,0,0,.25)"});
+
+    let lastAngles = { hrDeg: 0, minDeg: 0 };
+
+    function applyMetrics(){
+      const { base, scale, cx, cy } = metrics;
+
+      draw.viewbox(0,0,base,base);
+      drawFrame();
+      drawTicksAndNumbers();
+
+      hHand.size(cfg.hand.hourW * scale, cfg.hand.hourL * scale)
+        .move(cx - (cfg.hand.hourW * scale)/2, cy - cfg.hand.hourL * scale)
+        .radius(2 * scale);
+
+      mHand.size(cfg.hand.minW * scale, cfg.hand.minL * scale)
+        .move(cx - (cfg.hand.minW * scale)/2, cy - cfg.hand.minL * scale)
+        .radius(2 * scale);
+
+      sMain.size(cfg.hand.secW * scale, cfg.hand.secL * scale)
+        .move(cx - (cfg.hand.secW * scale)/2, cy - (cfg.hand.secL - 10) * scale);
+
+      sTail.size(cfg.hand.secTailW * scale, cfg.hand.secTailL * scale)
+        .move(cx - (cfg.hand.secTailW * scale)/2, cy + cfg.hand.secTailOffsetY * scale);
+
+      centerDot.size(cfg.centerDot * scale)
+        .center(cx,cy)
+        .stroke({width:1 * scale, color:"rgba(0,0,0,.25)"});
+
+      dateMini.setScale(scale);
+      dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
+      dateMini.updateDateOnChange(new Date());
+    }
+
+    function onResize(){
+      metrics = applyBase(computeBase());
+      applyMetrics();
+      dateMini.rebuild();
+      dateMini.setScale(metrics.scale);
+      dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
+      dateMini.setAllNow(new Date());
+    }
+
+    applyMetrics();
+    window.addEventListener("resize", onResize);
 
     /* ===== tick ===== */
     function tickAlignedOncePerSecond(){
@@ -454,10 +536,11 @@
 
       const hrDeg  = hr * 30;
       const minDeg = min * 6;
+      lastAngles = { hrDeg, minDeg };
 
-      hHand.untransform().rotate(hrDeg,  cx, cy);
-      mHand.untransform().rotate(minDeg, cx, cy);
-      sHand.untransform().rotate(sec*6,  cx, cy);
+      hHand.untransform().rotate(hrDeg,  metrics.cx, metrics.cy);
+      mHand.untransform().rotate(minDeg, metrics.cx, metrics.cy);
+      sHand.untransform().rotate(sec*6,  metrics.cx, metrics.cy);
 
       dateMini.placeDateOutsideAngle(hrDeg, minDeg);
       dateMini.updateDateOnChange(d);
