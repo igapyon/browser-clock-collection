@@ -575,15 +575,11 @@
       hands.rotate(hrDeg, minDeg, secDeg, metrics.cx, metrics.cy);
     }
 
-    function updateDateForAngles(d){
-      dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
-      dateMini.updateDateIfNeeded(d);
-    }
-
     function tickAlignedOncePerSecond(){
       const d = new Date();
       updateHandsForDate(d);
-      updateDateForAngles(d);
+      applyDateLayout(metrics.scale);
+      dateMini.updateDateIfNeeded(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
