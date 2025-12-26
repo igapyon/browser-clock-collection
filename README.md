@@ -9,13 +9,13 @@
 - `assets/preview/` 画像などの補助素材
 
 ## 収録時計
-- アナログ時計: `src/clocks/analog/analog-clock.html`
-- フリップデジタル時計: `src/clocks/flip-digital/flip-digital-clock.html`
-- フリップ日付: `src/clocks/flip-date/flip-date-clock.html`
-- アナログ＋フリップ日付: `src/clocks/analog-clock-date/analog-clock-date.html`
+- アナログ時計: `src/analog/analog-clock.html`
+- フリップデジタル時計: `src/flip-digital/flip-digital-clock.html`
+- フリップ日付: `src/flip-date/flip-date-clock.html`
+- アナログ＋フリップ日付: `src/analog-clock-date/analog-clock-date.html`
 
 ## 仕様メモ
-各時計の仕様説明は `docs/clocks/` 配下の Markdown を参照してください。
+各時計の仕様説明は `docs/` 配下の Markdown を参照してください。
 
 ## ローカルで開く
 `src/` 以下の HTML をブラウザで直接開けば動作します。
