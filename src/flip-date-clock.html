@@ -52,10 +52,11 @@
 
       // Flip date mini
       date: Object.freeze({
-        layoutW: 560,
+        layoutW: 360,
         layoutH: 300,
         scale: 1.0,
         centerBiasY: -0.25,
+        guidePadding: 10,
         yearFont: 44,
         yearY: 78,
         cardW: 90,
@@ -239,7 +240,11 @@
           .size(layoutW, layoutH);
 
         // bbox guide rect (invisible but used for measurement)
-        guideRect = dateSvg.rect(layoutW, layoutH).fill("none").opacity(0);
+        const pad = cfgDate.guidePadding;
+        guideRect = dateSvg.rect(layoutW - pad * 2, layoutH - pad * 2)
+          .move(pad, pad)
+          .fill("rgba(255,0,0,0.08)")
+          .opacity(1);
 
         yearText = dateSvg.text("2025")
           .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
