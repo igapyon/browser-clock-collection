@@ -52,12 +52,14 @@
     const weekJP = ["日","月","火","水","木","金","土"];
     const pad2 = (n) => String(n).padStart(2,"0");
 
+    const BASE = 400;
     const draw = SVG()
       .addTo("#mount")
-      .viewbox(0,0,400,400)
+      .viewbox(0,0,BASE,BASE)
       .size("100%","100%");
 
-    const cx = 200, cy = 200;
+    const cx = BASE / 2;
+    const cy = BASE / 2;
 
     const polar = (deg, r) => {
       const a = deg * Math.PI / 180;
@@ -74,10 +76,10 @@
     };
 
     /* ===== フレーム ===== */
-    draw.circle(400).center(cx,cy).fill(theme.frame);
-    draw.circle(392).center(cx,cy).fill("none")
+    draw.circle(BASE).center(cx,cy).fill(theme.frame);
+    draw.circle(BASE - 8).center(cx,cy).fill("none")
       .stroke({width:4, color:"rgba(255,255,255,.1)"});
-    draw.circle(392).center(cx,cy).fill("none")
+    draw.circle(BASE - 8).center(cx,cy).fill("none")
       .stroke({width:10, color:"rgba(0,0,0,.22)"}).opacity(.35);
 
     /* ===== 文字盤 ===== */
@@ -250,109 +252,119 @@
       }
     }
 
-    const DATE_LAYOUT_W = 560;
-    const DATE_LAYOUT_H = 300;
-    const DATE_SCALE = 0.3;
-    const dateRoot = draw.group();
-    const dateInner = dateRoot.group().scale(DATE_SCALE);
+    function createFlipDateMini(draw, cfg){
+      const DATE_LAYOUT_W = 560;
+      const DATE_LAYOUT_H = 300;
+      const DATE_SCALE = cfg.dateScale ?? 0.3;
 
-    const dateSvg = dateInner.nested()
-      .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
-      .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
+      const dateRoot = draw.group();
+      const dateInner = dateRoot.group().scale(DATE_SCALE);
 
-    dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+      const dateSvg = dateInner.nested()
+        .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
+        .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
 
-    const yearText = dateSvg.text("2025")
-      .font({family:"Georgia,'Times New Roman',serif",size:44,weight:700})
-      .fill("#1a1a1a")
-      .attr({x:DATE_LAYOUT_W/2,y:78,"text-anchor":"middle","dominant-baseline":"middle"});
+      dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
 
-    const cardW=90,cardH=72,gap=14;
-    const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
-    const y0=128;
+      const yearText = dateSvg.text("2025")
+        .font({family:"Georgia,'Times New Roman',serif",size:44,weight:700})
+        .fill("#1a1a1a")
+        .attr({x:DATE_LAYOUT_W/2,y:78,"text-anchor":"middle","dominant-baseline":"middle"});
 
-    const OPTICAL_NUDGE = 5;
+      const cardW=90,cardH=72,gap=14;
+      const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
+      const y0=128;
 
-    const mm=new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
-    const dd=new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+      const OPTICAL_NUDGE = 5;
 
-    const dowText=dateSvg.text("金")
-      .font({
-        family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-        size:36,
-        weight:600
-      })
-      .fill("rgba(0,0,0,.65)")
-      .attr({
-        x:x0+cardW*2+gap+11,
-        y:y0+cardH/2+15,
-        "text-anchor":"start",
-        "dominant-baseline":"middle"
-      });
+      const mm=new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+      const dd=new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
 
-    function setDow(d){
-      const w=weekJP[d.getDay()];
-      dowText.text(w);
-      if(w==="土") dowText.fill(theme.sat);
-      else if(w==="日") dowText.fill(theme.sun);
-      else dowText.fill("rgba(0,0,0,.65)");
-    }
+      const dowText=dateSvg.text("金")
+        .font({
+          family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
+          size:36,
+          weight:600
+        })
+        .fill("rgba(0,0,0,.65)")
+        .attr({
+          x:x0+cardW*2+gap+11,
+          y:y0+cardH/2+15,
+          "text-anchor":"start",
+          "dominant-baseline":"middle"
+        });
 
-    function setAll(d){
-      yearText.text(d.getFullYear());
-      mm.setValue(pad2(d.getMonth()+1));
-      dd.setValue(pad2(d.getDate()));
-      setDow(d);
-    }
-
-    let lastDateKey = null;
-    const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-
-    function updateDateOnChange(d){
-      const k = dateKey(d);
-      if(lastDateKey === null){
-        setAll(d);
-        lastDateKey = k;
-        return;
+      function setDow(d){
+        const w=weekJP[d.getDay()];
+        dowText.text(w);
+        if(w==="土") dowText.fill(theme.sat);
+        else if(w==="日") dowText.fill(theme.sun);
+        else dowText.fill("rgba(0,0,0,.65)");
       }
-      if(lastDateKey !== k){
-        const prev=new Date(d-1000);
-        dd.flipTo(pad2(d.getDate()));
-        if(prev.getMonth()!==d.getMonth()){
-          setTimeout(()=>mm.flipTo(pad2(d.getMonth()+1)),220);
-        }
+
+      function setAll(d){
         yearText.text(d.getFullYear());
+        mm.setValue(pad2(d.getMonth()+1));
+        dd.setValue(pad2(d.getDate()));
         setDow(d);
-        lastDateKey = k;
       }
+
+      let lastDateKey = null;
+      const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+
+      function updateDateOnChange(d){
+        const k = dateKey(d);
+        if(lastDateKey === null){
+          setAll(d);
+          lastDateKey = k;
+          return;
+        }
+        if(lastDateKey !== k){
+          const prev=new Date(d-1000);
+          dd.flipTo(pad2(d.getDate()));
+          if(prev.getMonth()!==d.getMonth()){
+            setTimeout(()=>mm.flipTo(pad2(d.getMonth()+1)),220);
+          }
+          yearText.text(d.getFullYear());
+          setDow(d);
+          lastDateKey = k;
+        }
+      }
+
+      function clampIntoView(margin=8){
+        const b = dateRoot.bbox();
+        let dx=0, dy=0;
+
+        if(b.x < margin) dx = margin - b.x;
+        if(b.y < margin) dy = margin - b.y;
+        if(b.x2 > BASE - margin) dx = (BASE - margin) - b.x2;
+        if(b.y2 > BASE - margin) dy = (BASE - margin) - b.y2;
+
+        if(dx || dy) dateRoot.dmove(dx, dy);
+      }
+
+      function placeDateOutsideAngle(hrDeg, minDeg){
+        const d = shortestDelta(minDeg, hrDeg);
+        const innerMid = normDeg(minDeg + d/2);
+        let outerMid = normDeg(innerMid + 180);
+
+        const ANGLE_OFFSET = 10;
+        outerMid = normDeg(outerMid + ANGLE_OFFSET);
+
+        const r = dialR * 0.32;
+        const p = polar(outerMid, r);
+
+        dateRoot.center(p.x, p.y);
+        clampIntoView(10);
+      }
+
+      return {
+        updateDateOnChange,
+        placeDateOutsideAngle
+      };
     }
 
-    function clampIntoView(margin=8){
-      const b = dateRoot.bbox();
-      let dx=0, dy=0;
-
-      if(b.x < margin) dx = margin - b.x;
-      if(b.y < margin) dy = margin - b.y;
-      if(b.x2 > 400 - margin) dx = (400 - margin) - b.x2;
-      if(b.y2 > 400 - margin) dy = (400 - margin) - b.y2;
-
-      if(dx || dy) dateRoot.dmove(dx, dy);
-    }
-
-    function placeDateOutsideAngle(hrDeg, minDeg){
-      const d = shortestDelta(minDeg, hrDeg);
-      const innerMid = normDeg(minDeg + d/2);
-      let outerMid = normDeg(innerMid + 180);
-
-      const ANGLE_OFFSET = 10;
-      outerMid = normDeg(outerMid + ANGLE_OFFSET);
-
-      const r = dialR * 0.32;
-      const p = polar(outerMid, r);
-
-      dateRoot.center(p.x, p.y);
-      clampIntoView(10);
-    }
+    const dateMini = createFlipDateMini(draw, { dateScale: 0.3 });
 
     /* ===== 針 ===== */
     const hands = draw.group()
@@ -391,8 +403,8 @@
       mHand.untransform().rotate(minDeg, cx, cy);
       sHand.untransform().rotate(sec*6,  cx, cy);
 
-      placeDateOutsideAngle(hrDeg, minDeg);
-      updateDateOnChange(d);
+      dateMini.placeDateOutsideAngle(hrDeg, minDeg);
+      dateMini.updateDateOnChange(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
