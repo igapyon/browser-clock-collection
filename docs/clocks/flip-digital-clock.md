@@ -1,34 +1,25 @@
 # Flip Digital Clock (24h)
 
-## Overview
-- SVG flip-style digital clock with hours, minutes, and seconds.
-- Each unit uses a top/bottom split card and a flipping flap.
+## 概要
+フリップ式のデジタル時計（24時間表示）です。時間・分・秒がカードの反転アニメーションで切り替わります。
 
-## Runtime Dependencies
-- SVG.js via CDN:
-  `https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js`
+## 表示内容
+- HH : MM : SS
+- 24時間表記
+- 3つのフリップカードとコロン区切り
 
-## Layout
-- ViewBox is `0 0 720 240`.
-- Card size: `170 x 140`.
-- Layout centers three cards (HH, MM, SS) with colon separators.
-- Optical vertical alignment is controlled by `OPTICAL_NUDGE`.
+## 振る舞い
+- 1秒ごとに更新
+- 秒の境界に合わせて更新
+- 変化した単位のみフリップアニメーション
 
-## Flip Unit
-- Uses clipped groups for top, bottom, and flap sections.
-- Measures text bbox to compute a baseline that centers digits visually.
-- Animation uses `easeInOutCubic` and scales the flap around the hinge line.
+## 動作環境
+- モダンブラウザ（Chrome / Edge / Safari / Firefox）
+- 外部ライブラリ: SVG.js（CDN）
 
-## Behavior
-- Time updates once per second, aligned to the exact second.
-- Flip sequencing:
-  - Seconds flip immediately.
-  - Minutes flip after `180ms`.
-  - Hours flip after `360ms`.
-- If a unit does not change, it is set without flipping.
+## 使い方
+- `src/clocks/flip-digital/flip-digital-clock.html` を直接ブラウザで開く
 
-## Key Parameters
-- `OPTICAL_NUDGE = 6`
-- Flip duration: `650ms`
-- Separator font size: `64`
-
+## 変更の目安
+- サイズ: ページ内の `#mount` 幅を調整
+- 表示のバランス: カードサイズや間隔を調整

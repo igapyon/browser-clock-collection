@@ -1,35 +1,25 @@
 # Flip Date
 
-## Overview
-- SVG flip-style date display with year, month, day, and day-of-week.
-- Month and day use flip cards; year and DOW are static text.
+## 概要
+フリップ式の日付表示です。年・月・日・曜日を大きく読みやすく表示します。
 
-## Runtime Dependencies
-- SVG.js via CDN:
-  `https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js`
+## 表示内容
+- 年（YYYY）
+- 月／日（MM / DD）
+- 曜日（日本語）
 
-## Layout
-- ViewBox is `0 0 560 300`.
-- Card size: `150 x 120` with a `24` gap.
-- Year centered above the cards; DOW label to the right.
-- Optical vertical alignment uses `OPTICAL_NUDGE`.
+## 振る舞い
+- 1秒ごとに日付を監視
+- 日付が変わったタイミングでフリップ更新
+- 月や年が変わる場合も適切に更新
 
-## Flip Unit
-- Top/bottom card split with clip groups and a flap for animation.
-- Text baseline is computed from bbox center for visual centering.
+## 動作環境
+- モダンブラウザ（Chrome / Edge / Safari / Firefox）
+- 外部ライブラリ: SVG.js（CDN）
 
-## Behavior
-- Tick runs once per second, aligned to the exact second.
-- Date changes trigger flips:
-  - Day card flips immediately.
-  - Month card flips after `220ms` on month rollover.
-  - Year text updates directly.
-- Day-of-week color:
-  - Saturday: blue
-  - Sunday: red
-  - Weekdays: muted gray
+## 使い方
+- `src/clocks/flip-date/flip-date-clock.html` を直接ブラウザで開く
 
-## Key Parameters
-- `OPTICAL_NUDGE = 5`
-- Flip duration: `650ms`
-
+## 変更の目安
+- サイズ: ページ内の `#mount` 幅を調整
+- 曜日位置: 右側のラベル位置を調整

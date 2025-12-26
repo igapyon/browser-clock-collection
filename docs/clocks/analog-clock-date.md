@@ -1,41 +1,25 @@
 # Analog Clock + Flip Date (Mini)
 
-## Overview
-- Analog clock rendered with SVG.
-- Flip-style date mini (YYYY + MM + DD) plus Japanese day-of-week.
-- Date block is positioned on the outer angle between hour and minute hands.
+## 概要
+アナログ時計の外角側にミニサイズのフリップ日付（年・月・日・曜日）を表示します。
 
-## Runtime Dependencies
-- SVG.js via CDN:
-  `https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js`
+## 表示内容
+- アナログ時計（時針／分針／秒針）
+- ミニ日付（YYYY / MM / DD / 曜日）
 
-## Layout
-- ViewBox is `0 0 400 400` with center at `(200, 200)`.
-- Dial radius: `172`.
-- Date block is built on a `560 x 300` layout and scaled by `DATE_SCALE`.
-- Positioning uses `dateRoot.center(x, y)` with clamp to keep it inside the viewBox.
+## 振る舞い
+- 時計は1秒ごとに更新
+- 日付は日付変更時のみフリップ更新
+- 日付ブロックは「長針と短針の外角側」に配置
 
-## Date Block
-- Year text above two flip cards (MM and DD).
-- Day-of-week label to the right/below of the cards.
-- Colors:
-  - Saturday: blue (`theme.sat`)
-  - Sunday: red (`theme.sun`)
-  - Weekdays: muted (`theme.dowText`)
+## 動作環境
+- モダンブラウザ（Chrome / Edge / Safari / Firefox）
+- 外部ライブラリ: SVG.js（CDN）
 
-## Behavior
-- Ticks are aligned to the next exact second using:
-  `setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds())`.
-- Hands are rotated based on current time each tick.
-- Date is updated only when the day changes (tracked by `lastDateKey`).
-- Day/month updates animate with flip; year and DOW update directly.
-- Date block is placed on the side opposite the midpoint between hour and minute hands, with a small angle offset for balance.
+## 使い方
+- `src/clocks/analog-clock-date/analog-clock-date.html` を直接ブラウザで開く
 
-## Key Parameters
-- `DATE_SCALE = 0.3`
-- Date layout size: `560 x 300`
-- Card size: `90 x 72`
-- Card gap: `14`
-- Year font size: `44`
-- DOW font size: `36`
-- Outer radius: `dialR * 0.32`
+## 変更の目安
+- 日付の大きさ: `DATE_SCALE` を調整
+- 日付の位置: `r`（中心からの距離）を調整
+- 曜日位置: 日付ブロック内の曜日ラベル位置を調整
