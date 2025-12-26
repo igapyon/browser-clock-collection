@@ -511,15 +511,12 @@
 
       dateMini.setScale(scale);
       dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
-      dateMini.updateDateOnChange(new Date());
     }
 
     function onResize(){
       metrics = applyBase(computeBase());
-      applyMetrics();
       dateMini.rebuild();
-      dateMini.setScale(metrics.scale);
-      dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
+      applyMetrics();
       dateMini.setAllNow(new Date());
     }
 
