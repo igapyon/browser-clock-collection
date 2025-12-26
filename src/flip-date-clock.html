@@ -55,6 +55,7 @@
         layoutW: 560,
         layoutH: 300,
         scale: 1.0,
+        centerBiasY: 0,
         yearFont: 44,
         yearY: 78,
         cardW: 90,
@@ -334,6 +335,11 @@
         getBBox(){
           return dateRoot.bbox();
         },
+        applyBiasY(bias){
+          const b = dateRoot.bbox();
+          dateRoot.dmove(0, b.height * bias);
+          clampIntoView();
+        },
         setScale(scale){
           dateInner.untransform().scale(scale * DATE_SCALE);
         },
@@ -361,6 +367,7 @@
       const fitScale = Math.min(baseW / box.width, baseH / box.height);
       dateMini.setScale(fitScale);
       dateMini.placeCentered(cx, cy);
+      dateMini.applyBiasY(cfg.date.centerBiasY);
     }
 
     let resizeRaf = null;
