@@ -354,8 +354,12 @@
       const { baseW, baseH, cx, cy } = metrics;
       draw.viewbox(0,0,baseW,baseH);
 
-      // Keep original layout ratio and fit within the window.
-      dateMini.setScale(metrics.scale);
+      // Fit based on the actual content bbox to reduce internal padding.
+      dateMini.setScale(1);
+      dateMini.placeCentered(cx, cy);
+      const box = dateMini.getBBox();
+      const fitScale = Math.min(baseW / box.width, baseH / box.height);
+      dateMini.setScale(fitScale);
       dateMini.placeCentered(cx, cy);
     }
 
