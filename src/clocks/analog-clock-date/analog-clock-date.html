@@ -123,9 +123,12 @@
     }
 
     /* =========================================================
-       Flip Date UI（壊れない配置：center() + clamp）
+       Flip Date UI（flip-date と同じ比率で描画 → scale で縮小）
        ========================================================= */
-    const DATE_SCALE = 0.62;
+    const DATE_SCALE = 0.55;
+    const DATE_LAYOUT_W = 560;
+    const DATE_LAYOUT_H = 300;
+    const CARD_FONT_SIZE = 64;
 
     class FlipCard {
       constructor(parent, x, y, w, h, text){
@@ -142,7 +145,7 @@
           .stroke({width:1, color:theme.seam});
 
         this.t = this.g.text(text)
-          .font({family:"ui-monospace, Menlo, Consolas, monospace", size:42, weight:700})
+          .font({family:"ui-monospace, Menlo, Consolas, monospace", size:CARD_FONT_SIZE, weight:700})
           .fill(theme.cardText)
           .attr({x:w/2, y:h/2, "text-anchor":"middle", "dominant-baseline":"middle"});
       }
@@ -155,28 +158,35 @@
     // 内側：固定レイアウト + scale はここだけ
     const dateInner = dateRoot.group().scale(DATE_SCALE);
 
-    const cardW = 88, cardH = 66, cardGap = 18;
-    const cardsW = cardW*2 + cardGap;
-    const yearY = 18;
-    const cardsY = 44;
-    const dowGap = 22;
+    // 固定レイアウトの bbox を安定させる（年や曜日で幅が変わっても中心がズレない）
+    dateInner.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+
+    const cardW = 150, cardH = 120, cardGap = 24;
+    const x0 = (DATE_LAYOUT_W - (cardW * 2 + cardGap)) / 2;
+    const cardsY = 90;
+    const yearY = 52;
 
     const yearText = dateInner.text("2025")
-      .font({family:"Georgia,'Times New Roman',serif", size:30, weight:700})
+      .font({family:"Georgia,'Times New Roman',serif", size:44, weight:700})
       .fill(theme.yearText)
-      .attr({x: cardsW/2, y: yearY, "text-anchor":"middle", "dominant-baseline":"middle"});
+      .attr({
+        x: DATE_LAYOUT_W/2,
+        y: yearY,
+        "text-anchor":"middle",
+        "dominant-baseline":"middle"
+      });
 
-    const mmCard = new FlipCard(dateInner, 0, cardsY, cardW, cardH, "12");
-    const ddCard = new FlipCard(dateInner, cardW + cardGap, cardsY, cardW, cardH, "26");
+    const mmCard = new FlipCard(dateInner, x0, cardsY, cardW, cardH, "12");
+    const ddCard = new FlipCard(dateInner, x0 + cardW + cardGap, cardsY, cardW, cardH, "26");
 
     const dowText = dateInner.text("金")
       .font({
         family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-        size:36, weight:700
+        size:40, weight:600
       })
       .fill(theme.dowText)
       .attr({
-        x: cardsW + dowGap,
+        x: x0 + cardW * 2 + cardGap + 28,
         y: cardsY + cardH/2,
         "text-anchor":"start",
         "dominant-baseline":"middle"
@@ -220,7 +230,7 @@
       const ANGLE_OFFSET = 10;
       outerMid = normDeg(outerMid + ANGLE_OFFSET);
 
-      const r = dialR * 0.38;
+      const r = dialR * 0.62;
       const p = polar(outerMid, r);
 
       // ★ここが本質：bbox中心を p に合わせる
