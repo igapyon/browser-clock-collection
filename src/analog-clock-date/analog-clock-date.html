@@ -53,17 +53,24 @@
     const pad2 = (n) => String(n).padStart(2,"0");
 
     const cfg = {
+      // Base size for proportional scaling
       base: 400,
+
+      // Frame + dial
       frameInset: 8,
       frameHighlight: 4,
       frameShadow: 10,
       dialR: 172,
+
+      // Ticks + numbers
       tickRadiusRatio: 0.92,
       tickMajor: 5,
       tickMinor: 3,
       numberRadiusRatio: 0.74,
       numberFont: 42,
       numberTightK: 0.27,
+
+      // Hands
       hand: {
         hourW: 12,
         hourL: 100,
@@ -76,6 +83,8 @@
         secTailOffsetY: 5
       },
       centerDot: 14,
+
+      // Flip date mini
       date: {
         layoutW: 560,
         layoutH: 300,
