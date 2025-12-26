@@ -52,7 +52,51 @@
     const weekJP = ["日","月","火","水","木","金","土"];
     const pad2 = (n) => String(n).padStart(2,"0");
 
-    const BASE = 400;
+    const cfg = {
+      base: 400,
+      frameInset: 8,
+      frameHighlight: 4,
+      frameShadow: 10,
+      dialR: 172,
+      tickRadiusRatio: 0.92,
+      tickMajor: 5,
+      tickMinor: 3,
+      numberRadiusRatio: 0.74,
+      numberFont: 42,
+      numberTightK: 0.27,
+      hand: {
+        hourW: 12,
+        hourL: 100,
+        minW: 6,
+        minL: 145,
+        secW: 2,
+        secL: 155,
+        secTailW: 4,
+        secTailL: 44,
+        secTailOffsetY: 5
+      },
+      centerDot: 14,
+      date: {
+        layoutW: 560,
+        layoutH: 300,
+        scale: 0.3,
+        yearFont: 44,
+        yearY: 78,
+        cardW: 90,
+        cardH: 72,
+        cardGap: 14,
+        cardY: 128,
+        dowFont: 36,
+        dowX: 11,
+        dowY: 15,
+        opticalNudge: 5,
+        angleOffset: 10,
+        radiusRatio: 0.32,
+        clampMargin: 10
+      }
+    };
+
+    const BASE = cfg.base;
     const S = BASE / 400;
     const draw = SVG()
       .addTo("#mount")
@@ -78,13 +122,13 @@
 
     /* ===== フレーム ===== */
     draw.circle(BASE).center(cx,cy).fill(theme.frame);
-    draw.circle(BASE - 8 * S).center(cx,cy).fill("none")
-      .stroke({width:4 * S, color:"rgba(255,255,255,.1)"});
-    draw.circle(BASE - 8 * S).center(cx,cy).fill("none")
-      .stroke({width:10 * S, color:"rgba(0,0,0,.22)"}).opacity(.35);
+    draw.circle(BASE - cfg.frameInset * S).center(cx,cy).fill("none")
+      .stroke({width:cfg.frameHighlight * S, color:"rgba(255,255,255,.1)"});
+    draw.circle(BASE - cfg.frameInset * S).center(cx,cy).fill("none")
+      .stroke({width:cfg.frameShadow * S, color:"rgba(0,0,0,.22)"}).opacity(.35);
 
     /* ===== 文字盤 ===== */
-    const dialR = 172 * S;
+    const dialR = cfg.dialR * S;
     draw.circle(dialR*2).center(cx,cy)
       .fill(theme.dial)
       .stroke({width:1, color:"rgba(0,0,0,.1)"});
@@ -92,18 +136,18 @@
     /* ===== 目盛り ===== */
     const ticks = draw.group();
     for(let i=0;i<60;i++){
-      const p = polar(i*6, dialR*0.92);
-      ticks.circle(i%5===0 ? 5 * S : 3 * S)
+      const p = polar(i*6, dialR * cfg.tickRadiusRatio);
+      ticks.circle(i%5===0 ? cfg.tickMajor * S : cfg.tickMinor * S)
         .center(p.x, p.y)
         .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
     }
 
     /* ===== 数字 ===== */
     const nums = draw.group();
-    const numberRadius = dialR * 0.74;
-    const fontSize = 42 * S;
+    const numberRadius = dialR * cfg.numberRadiusRatio;
+    const fontSize = cfg.numberFont * S;
     const globalDy = -fontSize * 0.05;
-    const tightK = 0.27;
+    const tightK = cfg.numberTightK;
     const dx = fontSize * tightK;
 
     function drawNumber(n, x, y){
@@ -253,10 +297,10 @@
       }
     }
 
-    function createFlipDateMini(draw, cfg){
-      const DATE_LAYOUT_W = 560;
-      const DATE_LAYOUT_H = 300;
-      const DATE_SCALE = (cfg.dateScale ?? 0.3) * S;
+    function createFlipDateMini(draw, opts = {}){
+      const DATE_LAYOUT_W = cfg.date.layoutW;
+      const DATE_LAYOUT_H = cfg.date.layoutH;
+      const DATE_SCALE = (opts.dateScale ?? cfg.date.scale) * S;
 
       const dateRoot = draw.group();
       const dateInner = dateRoot.group().scale(DATE_SCALE);
@@ -268,15 +312,22 @@
       dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
 
       const yearText = dateSvg.text("2025")
-        .font({family:"Georgia,'Times New Roman',serif",size:44 * S,weight:700})
+        .font({family:"Georgia,'Times New Roman',serif",size:cfg.date.yearFont * S,weight:700})
         .fill("#1a1a1a")
-        .attr({x:DATE_LAYOUT_W/2,y:78,"text-anchor":"middle","dominant-baseline":"middle"});
+        .attr({
+          x: DATE_LAYOUT_W/2,
+          y: cfg.date.yearY * S,
+          "text-anchor":"middle",
+          "dominant-baseline":"middle"
+        });
 
-      const cardW=90 * S, cardH=72 * S, gap=14 * S;
+      const cardW = cfg.date.cardW * S;
+      const cardH = cfg.date.cardH * S;
+      const gap = cfg.date.cardGap * S;
       const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
-      const y0=128;
+      const y0 = cfg.date.cardY * S;
 
-      const OPTICAL_NUDGE = 5;
+      const OPTICAL_NUDGE = cfg.date.opticalNudge;
 
       const mm=new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
       const dd=new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
@@ -284,13 +335,13 @@
       const dowText=dateSvg.text("金")
         .font({
           family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-          size:36 * S,
+          size:cfg.date.dowFont * S,
           weight:600
         })
         .fill("rgba(0,0,0,.65)")
         .attr({
-          x:x0+cardW*2+gap+11 * S,
-          y:y0+cardH/2+15 * S,
+          x: x0 + cardW * 2 + gap + cfg.date.dowX * S,
+          y: y0 + cardH/2 + cfg.date.dowY * S,
           "text-anchor":"start",
           "dominant-baseline":"middle"
         });
@@ -332,7 +383,7 @@
         }
       }
 
-      function clampIntoView(margin=8){
+      function clampIntoView(margin=cfg.date.clampMargin){
         const b = dateRoot.bbox();
         let dx=0, dy=0;
 
@@ -349,14 +400,14 @@
         const innerMid = normDeg(minDeg + d/2);
         let outerMid = normDeg(innerMid + 180);
 
-        const ANGLE_OFFSET = 10;
+        const ANGLE_OFFSET = cfg.date.angleOffset;
         outerMid = normDeg(outerMid + ANGLE_OFFSET);
 
-        const r = dialR * 0.32;
+        const r = dialR * cfg.date.radiusRatio;
         const p = polar(outerMid, r);
 
         dateRoot.center(p.x, p.y);
-        clampIntoView(10);
+        clampIntoView();
       }
 
       return {
@@ -378,14 +429,18 @@
         .radius(radius);
     }
 
-    const hHand = makeHand(12 * S, 100 * S, theme.hour, 2 * S);
-    const mHand = makeHand( 6 * S, 145 * S, theme.minute, 2 * S);
+    const hHand = makeHand(cfg.hand.hourW * S, cfg.hand.hourL * S, theme.hour, 2 * S);
+    const mHand = makeHand(cfg.hand.minW * S, cfg.hand.minL * S, theme.minute, 2 * S);
 
     const sHand = hands.group();
-    sHand.rect(2 * S, 155 * S).move(cx - 1 * S, cy - 145 * S).fill(theme.second);
-    sHand.rect(4 * S,  44 * S).move(cx - 2 * S, cy +   5 * S).fill(theme.second);
+    sHand.rect(cfg.hand.secW * S, cfg.hand.secL * S)
+      .move(cx - (cfg.hand.secW / 2) * S, cy - (cfg.hand.secL - 10) * S)
+      .fill(theme.second);
+    sHand.rect(cfg.hand.secTailW * S, cfg.hand.secTailL * S)
+      .move(cx - (cfg.hand.secTailW / 2) * S, cy + cfg.hand.secTailOffsetY * S)
+      .fill(theme.second);
 
-    draw.circle(14 * S).center(cx,cy)
+    draw.circle(cfg.centerDot * S).center(cx,cy)
       .fill("#cfcfcf")
       .stroke({width:1 * S, color:"rgba(0,0,0,.25)"});
 
