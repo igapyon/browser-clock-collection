@@ -65,7 +65,7 @@
         dowX: 11,
         dowY: 15,
         opticalNudge: 5,
-        clampMargin: 10
+        clampMargin: 0
       })
     });
 
@@ -225,8 +225,8 @@
       let mm;
       let dd;
       let dowText;
-      let layoutW = cfgDate.layoutW;
-      let layoutH = cfgDate.layoutH;
+      const layoutW = cfgDate.layoutW;
+      const layoutH = cfgDate.layoutH;
 
       function build(){
         dateRoot.clear();
@@ -238,25 +238,21 @@
 
         dateSvg.rect(layoutW, layoutH).fill("none").opacity(0);
 
-        const scaleK = layoutW / cfgDate.layoutW;
-        const yearY = layoutH * (cfgDate.yearY / cfgDate.layoutH);
-        const cardY = layoutH * (cfgDate.cardY / cfgDate.layoutH);
-
         yearText = dateSvg.text("2025")
-          .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont * scaleK,weight:700})
+          .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
           .fill("#1a1a1a")
           .attr({
             x: layoutW/2,
-            y: yearY,
+            y: cfgDate.yearY,
             "text-anchor":"middle",
             "dominant-baseline":"middle"
           });
 
-        const cardW = cfgDate.cardW * scaleK;
-        const cardH = cfgDate.cardH * scaleK;
-        const gap = cfgDate.cardGap * scaleK;
+        const cardW = cfgDate.cardW;
+        const cardH = cfgDate.cardH;
+        const gap = cfgDate.cardGap;
         const x0=(layoutW-(cardW*2+gap))/2;
-        const y0 = cardY;
+        const y0 = cfgDate.cardY;
 
         mm = new FlipUnit(dateSvg,x0,y0,cardW,cardH);
         dd = new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH);
@@ -264,13 +260,13 @@
         dowText = dateSvg.text("金")
           .font({
             family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-            size:cfgDate.dowFont * scaleK,
+            size:cfgDate.dowFont,
             weight:600
           })
           .fill("rgba(0,0,0,.65)")
           .attr({
-            x: x0 + cardW * 2 + gap + cfgDate.dowX * scaleK,
-            y: y0 + cardH/2 + cfgDate.dowY * scaleK,
+            x: x0 + cardW * 2 + gap + cfgDate.dowX,
+            y: y0 + cardH/2 + cfgDate.dowY,
             "text-anchor":"start",
             "dominant-baseline":"middle"
           });
@@ -341,12 +337,6 @@
         setScale(scale){
           dateInner.untransform().scale(scale * DATE_SCALE);
         },
-        setLayout(nextW, nextH){
-          layoutW = nextW;
-          layoutH = nextH;
-          build();
-          lastDateKey = null;
-        },
         rebuild(){
           build();
           lastDateKey = null;
@@ -364,14 +354,8 @@
       const { baseW, baseH, cx, cy } = metrics;
       draw.viewbox(0,0,baseW,baseH);
 
-      // Match layout ratio to the window, then scale to fill without distortion.
-      const aspect = baseW / baseH;
-      const layoutW = cfg.date.layoutW;
-      const layoutH = layoutW / aspect;
-      const fitScale = baseW / layoutW;
-
-      dateMini.setLayout(layoutW, layoutH);
-      dateMini.setScale(fitScale);
+      // Keep original layout ratio and fit within the window.
+      dateMini.setScale(metrics.scale);
       dateMini.placeCentered(cx, cy);
     }
 
