@@ -330,9 +330,10 @@
     }
 
     function createFlipDateMini(draw, opts = {}){
-      const DATE_LAYOUT_W = cfg.date.layoutW;
-      const DATE_LAYOUT_H = cfg.date.layoutH;
-      const DATE_SCALE = opts.dateScale ?? cfg.date.scale;
+      const cfgDate = cfg.date;
+      const DATE_LAYOUT_W = cfgDate.layoutW;
+      const DATE_LAYOUT_H = cfgDate.layoutH;
+      const DATE_SCALE = opts.dateScale ?? cfgDate.scale;
 
       const dateRoot = draw.group();
       let dateInner;
@@ -352,22 +353,22 @@
         dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
 
         yearText = dateSvg.text("2025")
-          .font({family:"Georgia,'Times New Roman',serif",size:cfg.date.yearFont,weight:700})
+          .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
           .fill("#1a1a1a")
           .attr({
             x: DATE_LAYOUT_W/2,
-            y: cfg.date.yearY,
+            y: cfgDate.yearY,
             "text-anchor":"middle",
             "dominant-baseline":"middle"
           });
 
-        const cardW = cfg.date.cardW;
-        const cardH = cfg.date.cardH;
-        const gap = cfg.date.cardGap;
+        const cardW = cfgDate.cardW;
+        const cardH = cfgDate.cardH;
+        const gap = cfgDate.cardGap;
         const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
-        const y0 = cfg.date.cardY;
+        const y0 = cfgDate.cardY;
 
-        const OPTICAL_NUDGE = cfg.date.opticalNudge;
+        const OPTICAL_NUDGE = cfgDate.opticalNudge;
 
         mm = new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
         dd = new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
@@ -375,13 +376,13 @@
         dowText = dateSvg.text("金")
           .font({
             family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-            size:cfg.date.dowFont,
+            size:cfgDate.dowFont,
             weight:600
           })
           .fill("rgba(0,0,0,.65)")
           .attr({
-            x: x0 + cardW * 2 + gap + cfg.date.dowX,
-            y: y0 + cardH/2 + cfg.date.dowY,
+            x: x0 + cardW * 2 + gap + cfgDate.dowX,
+            y: y0 + cardH/2 + cfgDate.dowY,
             "text-anchor":"start",
             "dominant-baseline":"middle"
           });
@@ -426,7 +427,7 @@
         }
       }
 
-      function clampIntoView(margin=cfg.date.clampMargin){
+      function clampIntoView(margin=cfgDate.clampMargin){
         const b = dateRoot.bbox();
         let dx=0, dy=0;
 
@@ -443,10 +444,10 @@
         const innerMid = normDeg(minDeg + d/2);
         let outerMid = normDeg(innerMid + 180);
 
-        const ANGLE_OFFSET = cfg.date.angleOffset;
+        const ANGLE_OFFSET = cfgDate.angleOffset;
         outerMid = normDeg(outerMid + ANGLE_OFFSET);
 
-        const r = dialR * cfg.date.radiusRatio;
+        const r = dialR * cfgDate.radiusRatio;
         const p = polar(outerMid, r);
 
         dateRoot.center(p.x, p.y);
