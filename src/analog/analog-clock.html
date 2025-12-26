@@ -17,11 +17,11 @@
       display:grid;
       gap:10px;
       justify-items:center;
-      padding:18px;
+      padding:0;
     }
     #mount{
-      width:min(92vw, 420px);
-      aspect-ratio:1/1;
+      width:min(100vw, 100vh);
+      height:min(100vw, 100vh);
     }
   </style>
 </head>
@@ -33,123 +33,232 @@
   <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js"></script>
 
   <script>
-    /* ===== テーマ ===== */
-    const theme = {
-      frame:"#8a4f3a",
-      dial:"#f7f7f5",
-      text:"#101010",
-      dotMinor:"rgba(0,0,0,0.35)",
-      dotMajor:"#1a1a1a",
-      hour:"#111",
-      minute:"#111",
-      second:"#9aa0a6"
-    };
+    const cfg = Object.freeze({
+      // Theme
+      theme: Object.freeze({
+        frame:"#8a4f3a",
+        dial:"#f7f7f5",
+        text:"#101010",
+        dotMinor:"rgba(0,0,0,0.35)",
+        dotMajor:"#1a1a1a",
+        hour:"#111",
+        minute:"#111",
+        second:"#9aa0a6"
+      }),
 
+      // Base size for proportional scaling
+      base: 400,
+      baseMin: 240,
+      baseScale: 0.9,
+
+      // Frame + dial
+      frameInset: 8,
+      frameHighlight: 4,
+      frameShadow: 10,
+      dialR: 172,
+
+      // Ticks + numbers
+      tickRadiusRatio: 0.92,
+      tickMajor: 5,
+      tickMinor: 3,
+      numberRadiusRatio: 0.74,
+      numberFont: 42,
+      numberTightK: 0.27,
+
+      // Hands
+      hand: Object.freeze({
+        hourW: 12,
+        hourL: 100,
+        minW: 6,
+        minL: 145,
+        secW: 2,
+        secL: 155,
+        secTailW: 4,
+        secTailL: 44,
+        secTailOffsetY: 5
+      }),
+      centerDot: 14
+    });
+
+    const theme = cfg.theme;
     const draw = SVG()
       .addTo("#mount")
-      .viewbox(0,0,400,400)
       .size("100%","100%");
 
-    const cx = 200, cy = 200;
+    function computeBase(){
+      const size = Math.min(window.innerWidth, window.innerHeight);
+      const cssBase = Math.max(cfg.baseMin, Math.floor(size * cfg.baseScale));
+      const dpr = window.devicePixelRatio || 1;
+      const base = Math.round(cssBase * dpr);
+      return { base, cssBase, dpr };
+    }
+
+    function applyBase(baseInfo){
+      const scale = baseInfo.base / 400;
+      return {
+        base: baseInfo.base,
+        scale,
+        cx: baseInfo.base / 2,
+        cy: baseInfo.base / 2,
+        cssBase: baseInfo.cssBase,
+        dpr: baseInfo.dpr
+      };
+    }
+
+    let metrics = applyBase(computeBase());
 
     const polar = (deg, r) => {
       const a = deg * Math.PI / 180;
-      return { x: cx + Math.sin(a) * r, y: cy - Math.cos(a) * r };
+      return {
+        x: metrics.cx + Math.sin(a) * r,
+        y: metrics.cy - Math.cos(a) * r
+      };
     };
 
-    /* ===== フレーム ===== */
-    draw.circle(400).center(cx,cy).fill(theme.frame);
-    draw.circle(392).center(cx,cy).fill("none")
-      .stroke({width:4, color:"rgba(255,255,255,.1)"});
-    draw.circle(392).center(cx,cy).fill("none")
-      .stroke({width:10, color:"rgba(0,0,0,.22)"}).opacity(.35);
-
-    /* ===== 文字盤 ===== */
-    const dialR = 172;
-    draw.circle(dialR*2).center(cx,cy)
-      .fill(theme.dial)
-      .stroke({width:1, color:"rgba(0,0,0,.1)"});
-
-    /* ===== 目盛り ===== */
+    const gFrame = draw.group();
     const ticks = draw.group();
-    for(let i=0;i<60;i++){
-      const p = polar(i*6, dialR*0.92);
-      ticks.circle(i%5===0 ? 5 : 3)
-        .center(p.x, p.y)
-        .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
+    const nums = draw.group();
+    let dialR = 0;
+
+    function drawFrame(){
+      gFrame.clear();
+      const { base, scale, cx, cy } = metrics;
+      dialR = cfg.dialR * scale;
+
+      gFrame.circle(base).center(cx,cy).fill(theme.frame);
+      gFrame.circle(base - cfg.frameInset * scale).center(cx,cy).fill("none")
+        .stroke({width:cfg.frameHighlight * scale, color:"rgba(255,255,255,.1)"});
+      gFrame.circle(base - cfg.frameInset * scale).center(cx,cy).fill("none")
+        .stroke({width:cfg.frameShadow * scale, color:"rgba(0,0,0,.22)"}).opacity(.35);
+
+      gFrame.circle(dialR*2).center(cx,cy)
+        .fill(theme.dial)
+        .stroke({width:1 * scale, color:"rgba(0,0,0,.1)"});
     }
 
-    /* ===== 数字 ===== */
-    const nums = draw.group();
-    const numberRadius = dialR * 0.74;
-    const fontSize = 42;
-    const globalDy = -fontSize * 0.05;
-    const tightK = 0.27;
-    const dx = fontSize * tightK;
+    function drawTicksAndNumbers(){
+      ticks.clear();
+      nums.clear();
+      const { scale } = metrics;
+      const numberRadius = dialR * cfg.numberRadiusRatio;
+      const fontSize = cfg.numberFont * scale;
+      const globalDy = -fontSize * 0.05;
+      const tightK = cfg.numberTightK;
+      const dx = fontSize * tightK;
 
-    function drawNumber(n, x, y){
-      const yy = y + globalDy;
-
-      if(n < 10){
-        nums.text(String(n))
+      function drawNumber(n, x, y){
+        const yy = y + globalDy;
+        if(n < 10){
+          nums.text(String(n))
+            .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+            .fill(theme.text)
+            .attr({x, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
+          return;
+        }
+        const s = String(n);
+        nums.text(s[0])
           .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
           .fill(theme.text)
-          .attr({x, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-        return;
+          .attr({x:x-dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
+        nums.text(s[1])
+          .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+          .fill(theme.text)
+          .attr({x:x+dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
       }
 
-      const s = String(n);
-      nums.text(s[0])
-        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
-        .fill(theme.text)
-        .attr({x:x-dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-      nums.text(s[1])
-        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
-        .fill(theme.text)
-        .attr({x:x+dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
+      for(let i=0;i<60;i++){
+        const p = polar(i*6, dialR * cfg.tickRadiusRatio);
+        ticks.circle(i%5===0 ? cfg.tickMajor * scale : cfg.tickMinor * scale)
+          .center(p.x, p.y)
+          .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
+      }
+
+      for(let n=1;n<=12;n++){
+        const p = polar((n%12)*30, numberRadius);
+        drawNumber(n, p.x, p.y);
+      }
     }
 
-    for(let n=1;n<=12;n++){
-      const p = polar((n%12)*30, numberRadius);
-      drawNumber(n, p.x, p.y);
+    function createHands(draw){
+      const hands = draw.group()
+        .attr({style:"filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))"});
+
+      const hHand = hands.rect(0, 0).fill(theme.hour);
+      const mHand = hands.rect(0, 0).fill(theme.minute);
+
+      const sHand = hands.group();
+      const sMain = sHand.rect(0, 0).fill(theme.second);
+      const sTail = sHand.rect(0, 0).fill(theme.second);
+
+      const centerDot = draw.circle(0).center(0,0)
+        .fill("#cfcfcf")
+        .stroke({width:0, color:"rgba(0,0,0,.25)"});
+
+      function apply(scale, cx, cy){
+        hHand.size(cfg.hand.hourW * scale, cfg.hand.hourL * scale)
+          .move(cx - (cfg.hand.hourW * scale)/2, cy - cfg.hand.hourL * scale)
+          .radius(2 * scale);
+
+        mHand.size(cfg.hand.minW * scale, cfg.hand.minL * scale)
+          .move(cx - (cfg.hand.minW * scale)/2, cy - cfg.hand.minL * scale)
+          .radius(2 * scale);
+
+        sMain.size(cfg.hand.secW * scale, cfg.hand.secL * scale)
+          .move(cx - (cfg.hand.secW * scale)/2, cy - (cfg.hand.secL - 10) * scale);
+
+        sTail.size(cfg.hand.secTailW * scale, cfg.hand.secTailL * scale)
+          .move(cx - (cfg.hand.secTailW * scale)/2, cy + cfg.hand.secTailOffsetY * scale);
+
+        centerDot.size(cfg.centerDot * scale)
+          .center(cx,cy)
+          .stroke({width:1 * scale, color:"rgba(0,0,0,.25)"});
+      }
+
+      function rotate(hrDeg, minDeg, secDeg, cx, cy){
+        hHand.untransform().rotate(hrDeg,  cx, cy);
+        mHand.untransform().rotate(minDeg, cx, cy);
+        sHand.untransform().rotate(secDeg,  cx, cy);
+      }
+
+      return { apply, rotate };
     }
 
-    /* ===== 針 ===== */
-    const hands = draw.group()
-      .attr({style:"filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))"});
+    const hands = createHands(draw);
 
-    function makeHand(w, l, color, radius=0){
-      return hands.rect(w, l)
-        .move(cx - w/2, cy - l)
-        .fill(color)
-        .radius(radius);
+    function applyMetrics(){
+      const { base, scale, cx, cy } = metrics;
+      draw.viewbox(0,0,base,base);
+      drawFrame();
+      drawTicksAndNumbers();
+      hands.apply(scale, cx, cy);
     }
 
-    const hHand = makeHand(12, 100, theme.hour, 2);
-    const mHand = makeHand( 6, 145, theme.minute, 2);
+    let resizeRaf = null;
+    function onResize(){
+      if(resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        metrics = applyBase(computeBase());
+        applyMetrics();
+      });
+    }
 
-    const sHand = hands.group();
-    sHand.rect(2, 155).move(cx - 1, cy - 145).fill(theme.second);
-    sHand.rect(4,  44).move(cx - 2, cy +   5).fill(theme.second);
-
-    draw.circle(14).center(cx,cy)
-      .fill("#cfcfcf")
-      .stroke({width:1, color:"rgba(0,0,0,.25)"});
-
-    /* ===== tick（1秒に1回） ===== */
-    function tickAlignedOncePerSecond(){
-      const d = new Date();
+    function updateHandsForDate(d){
       const sec = d.getSeconds();
       const min = d.getMinutes() + sec/60;
       const hr  = (d.getHours()%12) + min/60;
 
-      hHand.untransform().rotate(hr*30, cx, cy);
-      mHand.untransform().rotate(min*6, cx, cy);
-      sHand.untransform().rotate(sec*6, cx, cy);
+      hands.rotate(hr * 30, min * 6, sec * 6, metrics.cx, metrics.cy);
+    }
 
+    function tickAlignedOncePerSecond(){
+      const d = new Date();
+      updateHandsForDate(d);
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
 
+    applyMetrics();
+    window.addEventListener("resize", onResize);
     tickAlignedOncePerSecond();
   </script>
 </body>
