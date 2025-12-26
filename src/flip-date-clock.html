@@ -55,7 +55,7 @@
         layoutW: 560,
         layoutH: 300,
         scale: 1.0,
-        centerBiasY: 0,
+        centerBiasY: -0.25,
         yearFont: 44,
         yearY: 78,
         cardW: 90,
@@ -226,6 +226,7 @@
       let mm;
       let dd;
       let dowText;
+      let guideRect;
       const layoutW = cfgDate.layoutW;
       const layoutH = cfgDate.layoutH;
 
@@ -237,7 +238,8 @@
           .viewbox(0,0,layoutW,layoutH)
           .size(layoutW, layoutH);
 
-        // layout bbox rect removed to allow tight fitting by content
+        // bbox guide rect (invisible but used for measurement)
+        guideRect = dateSvg.rect(layoutW, layoutH).fill("none").opacity(0);
 
         yearText = dateSvg.text("2025")
           .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
@@ -333,7 +335,7 @@
         updateDateIfNeeded,
         placeCentered,
         getBBox(){
-          return dateRoot.bbox();
+          return guideRect ? guideRect.bbox() : dateRoot.bbox();
         },
         applyBiasY(bias){
           const b = dateRoot.bbox();
