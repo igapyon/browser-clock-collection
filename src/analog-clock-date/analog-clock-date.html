@@ -557,21 +557,28 @@
     window.addEventListener("resize", onResize);
 
     /* ===== tick ===== */
-    function tickAlignedOncePerSecond(){
-      const d = new Date();
-
+    function updateHandsForDate(d){
       const sec = d.getSeconds();
       const min = d.getMinutes() + sec/60;
       const hr  = (d.getHours()%12) + min/60;
 
       const hrDeg  = hr * 30;
       const minDeg = min * 6;
+      const secDeg = sec * 6;
+
       lastAngles = { hrDeg, minDeg };
+      hands.rotate(hrDeg, minDeg, secDeg, metrics.cx, metrics.cy);
+    }
 
-      hands.rotate(hrDeg, minDeg, sec * 6, metrics.cx, metrics.cy);
-
-      dateMini.placeDateOutsideAngle(hrDeg, minDeg);
+    function updateDateForAngles(d){
+      dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
       dateMini.updateDateIfNeeded(d);
+    }
+
+    function tickAlignedOncePerSecond(){
+      const d = new Date();
+      updateHandsForDate(d);
+      updateDateForAngles(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
