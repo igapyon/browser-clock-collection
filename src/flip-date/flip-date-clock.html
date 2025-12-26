@@ -13,211 +13,368 @@
       background:#ececec;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
     }
+    .wrap{
+      display:grid;
+      gap:10px;
+      justify-items:center;
+      padding:0;
+    }
     #mount{
-      width:min(92vw, 560px);
-      aspect-ratio: 560 / 300;
+      width:100vw;
+      height:100vh;
     }
   </style>
 </head>
 <body>
-<div id="mount"></div>
+  <div class="wrap">
+    <div id="mount" aria-label="フリップ日付"></div>
+  </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js"></script>
-<script>
-const pad2 = (n) => String(n).padStart(2,"0");
-const weekJP = ["日","月","火","水","木","金","土"];
+  <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js"></script>
 
-function easeInOutCubic(t){
-  return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
-}
+  <script>
+    const weekJP = ["日","月","火","水","木","金","土"];
+    const pad2 = (n) => String(n).padStart(2,"0");
 
-class FlipUnit{
-  constructor(draw, x, y, w, h, opts={}){
-    this.draw=draw; this.x=x; this.y=y; this.w=w; this.h=h;
-    this.half=h/2;
-    this.value="00";
-    this.isFlipping=false;
+    const cfg = Object.freeze({
+      // Theme
+      theme: Object.freeze({
+        dateText:"rgba(0,0,0,0.70)",
+        dateSub:"rgba(0,0,0,0.55)",
+        sat:"#1f4fd8",
+        sun:"#d32f2f"
+      }),
 
-    this.opticalNudge = opts.opticalNudge ?? 5; // ★視覚補正
+      // Base size for proportional scaling
+      base: 400,
+      baseMin: 240,
+      baseScale: 1.0,
 
-    draw.rect(w,h).move(x+2,y+3)
-      .fill("rgba(0,0,0,.25)").radius(10).opacity(.35);
+      // Flip date mini
+      date: Object.freeze({
+        layoutW: 560,
+        layoutH: 300,
+        scale: 1.0,
+        yearFont: 44,
+        yearY: 78,
+        cardW: 90,
+        cardH: 72,
+        cardGap: 14,
+        cardY: 128,
+        dowFont: 36,
+        dowX: 11,
+        dowY: 15,
+        opticalNudge: 5,
+        clampMargin: 10
+      })
+    });
 
-    this.card=draw.group();
-    this.card.rect(w,h).move(x,y).fill("#1f1f1f").radius(10);
-    this.card.rect(w,this.half).move(x,y).fill("#262626").radius(10);
+    const theme = cfg.theme;
+    const draw = SVG()
+      .addTo("#mount")
+      .size("100%","100%");
 
-    const seamY = y + this.half + 0.5;
-    this.card.line(x+10,seamY,x+w-10,seamY)
-      .stroke({width:1,color:"rgba(255,255,255,.1)"});
-
-    this.clipTop=draw.clip().add(draw.rect(w,this.half).move(x,y));
-    this.clipBot=draw.clip().add(draw.rect(w,this.half).move(x,y+this.half));
-
-    this.topStatic=draw.group().clipWith(this.clipTop);
-    this.botStatic=draw.group().clipWith(this.clipBot);
-    this.flap=draw.group().clipWith(this.clipTop);
-
-    this.font={ family:"ui-monospace, Menlo, Consolas, monospace", size:64, weight:700 };
-
-    // ★計測用（不可視）
-    this.measure = draw.text("00")
-      .font(this.font)
-      .fill("none")
-      .opacity(0)
-      .attr({ x:this.x+this.w/2, y:0, "text-anchor":"middle" });
-
-    this.topText=this._txt(this.topStatic,this.value);
-    this.botText=this._txt(this.botStatic,this.value);
-    this.flapText=this._txt(this.flap,this.value);
-
-    this._setText(this.topText,this.value);
-    this._setText(this.botText,this.value);
-    this._setText(this.flapText,this.value);
-  }
-
-  _txt(g,str){
-    return g.text(str)
-      .font(this.font)
-      .fill("#f3f3f3")
-      .attr({ x:this.x+this.w/2, y:this.y+this.h/2, "text-anchor":"middle" });
-  }
-
-  _calcCenteredY(str){
-    const cx=this.x+this.w/2;
-    const targetCy=this.y+this.h/2;
-
-    this.measure.text(str).attr({x:cx,y:0});
-    const b=this.measure.bbox();
-    const bboxCenter=b.y+b.height/2;
-
-    return targetCy - bboxCenter + this.opticalNudge;
-  }
-
-  _setText(el,str){
-    el.text(str);
-    el.attr({ y:this._calcCenteredY(str) });
-  }
-
-  setValue(v){
-    this.value=v;
-    this._setText(this.topText,v);
-    this._setText(this.botText,v);
-    this._setText(this.flapText,v);
-  }
-
-  flipTo(next,dur=650){
-    if(this.isFlipping||next===this.value) return;
-    this.isFlipping=true;
-
-    const cur=this.value;
-    this._setText(this.topText,cur);
-    this._setText(this.botText,cur);
-    this._setText(this.flapText,cur);
-
-    const start=performance.now();
-    const cx=this.x+this.w/2;
-    const hingeY=this.y+this.half;
-    let switched=false;
-
-    const step=(now)=>{
-      const t=Math.min(1,(now-start)/dur);
-      const e=easeInOutCubic(t);
-
-      this.flap.transform({
-        translateX:cx,
-        translateY:hingeY,
-        scaleY:1-e,
-        scaleX:1
-      });
-
-      if(!switched && t>0.52){
-        switched=true;
-        this._setText(this.topText,next);
-        this._setText(this.botText,next);
-        this._setText(this.flapText,next);
-      }
-
-      if(t<1) requestAnimationFrame(step);
-      else{
-        this.flap.untransform();
-        this.value=next;
-        this.isFlipping=false;
-      }
-    };
-    requestAnimationFrame(step);
-  }
-}
-
-/* ===== 描画 ===== */
-const W=560,H=300;
-const draw=SVG().addTo("#mount").viewbox(0,0,W,H).size("100%","100%");
-draw.rect(W,H).fill("#f2f2f2");
-
-const yearText=draw.text("2025")
-  .font({family:"Georgia,'Times New Roman',serif",size:44,weight:700})
-  .fill("#1a1a1a")
-  .attr({x:W/2,y:52,"text-anchor":"middle","dominant-baseline":"middle"});
-
-const cardW=150,cardH=120,gap=24;
-const x0=(W-(cardW*2+gap))/2;
-const y0=90;
-
-const OPTICAL_NUDGE = 5;
-
-const mm=new FlipUnit(draw,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
-const dd=new FlipUnit(draw,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
-
-/* ===== 曜日 ===== */
-const dowText=draw.text("金")
-  .font({
-    family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-    size:40,
-    weight:600
-  })
-  .fill("rgba(0,0,0,.65)")
-  .attr({
-    x:x0+cardW*2+gap+28,
-    y:y0+cardH/2,
-    "text-anchor":"start",
-    "dominant-baseline":"middle"
-  });
-
-function setDow(d){
-  const w=weekJP[d.getDay()];
-  dowText.text(w);
-  if(w==="土") dowText.fill("#1f4fd8");
-  else if(w==="日") dowText.fill("#d32f2f");
-  else dowText.fill("rgba(0,0,0,.65)");
-}
-
-function setAll(d){
-  yearText.text(d.getFullYear());
-  mm.setValue(pad2(d.getMonth()+1));
-  dd.setValue(pad2(d.getDate()));
-  setDow(d);
-}
-setAll(new Date());
-
-let lastKey=null;
-const keyOf=d=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-
-function tick(){
-  const now=new Date();
-  const k=keyOf(now);
-  if(lastKey && k!==lastKey){
-    const prev=new Date(now-1000);
-    dd.flipTo(pad2(now.getDate()));
-    if(prev.getMonth()!==now.getMonth()){
-      setTimeout(()=>mm.flipTo(pad2(now.getMonth()+1)),220);
+    function computeMetrics(){
+      const dpr = window.devicePixelRatio || 1;
+      const baseW = Math.round(window.innerWidth * dpr);
+      const baseH = Math.round(window.innerHeight * dpr);
+      const scale = Math.min(
+        baseW / cfg.date.layoutW,
+        baseH / cfg.date.layoutH
+      ) * cfg.baseScale;
+      return {
+        baseW,
+        baseH,
+        scale,
+        cx: baseW / 2,
+        cy: baseH / 2,
+        dpr
+      };
     }
-    yearText.text(now.getFullYear());
-    setDow(now);
-  }
-  lastKey=k;
-  setTimeout(tick,1000-now.getMilliseconds());
-}
-tick();
-</script>
+
+    let metrics = computeMetrics();
+
+    function easeInOutCubic(t){
+      return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+    }
+
+    class FlipUnit{
+      constructor(draw, x, y, w, h, opts={}){
+        this.draw=draw; this.x=x; this.y=y; this.w=w; this.h=h;
+        this.half=h/2;
+        this.value="00";
+        this.isFlipping=false;
+
+        this.opticalNudge = opts.opticalNudge ?? cfg.date.opticalNudge;
+
+        draw.rect(w,h).move(x+2,y+3)
+          .fill("rgba(0,0,0,.25)").radius(6).opacity(.35);
+
+        this.card=draw.group();
+        this.card.rect(w,h).move(x,y).fill("#1f1f1f").radius(6);
+        this.card.rect(w,this.half).move(x,y).fill("#262626").radius(6);
+
+        const seamY = y + this.half + 0.5;
+        this.card.line(x+6,seamY,x+w-6,seamY)
+          .stroke({width:1,color:"rgba(255,255,255,.1)"});
+
+        this.clipTop=draw.clip().add(draw.rect(w,this.half).move(x,y));
+        this.clipBot=draw.clip().add(draw.rect(w,this.half).move(x,y+this.half));
+
+        this.topStatic=draw.group().clipWith(this.clipTop);
+        this.botStatic=draw.group().clipWith(this.clipBot);
+        this.flap=draw.group().clipWith(this.clipTop);
+
+        this.font={ family:"ui-monospace, Menlo, Consolas, monospace", size:38, weight:700 };
+
+        this.measure = draw.text("00")
+          .font(this.font)
+          .fill("none")
+          .opacity(0)
+          .attr({ x:this.x+this.w/2, y:0, "text-anchor":"middle" });
+
+        this.topText=this._txt(this.topStatic,this.value);
+        this.botText=this._txt(this.botStatic,this.value);
+        this.flapText=this._txt(this.flap,this.value);
+
+        this._setText(this.topText,this.value);
+        this._setText(this.botText,this.value);
+        this._setText(this.flapText,this.value);
+      }
+
+      _txt(g,str){
+        return g.text(str)
+          .font(this.font)
+          .fill("#f3f3f3")
+          .attr({ x:this.x+this.w/2, y:this.y+this.h/2, "text-anchor":"middle" });
+      }
+
+      _calcCenteredY(str){
+        const cx=this.x+this.w/2;
+        const targetCy=this.y+this.h/2;
+
+        this.measure.text(str).attr({x:cx,y:0});
+        const b=this.measure.bbox();
+        const bboxCenter=b.y+b.height/2;
+
+        return targetCy - bboxCenter + this.opticalNudge;
+      }
+
+      _setText(el,str){
+        el.text(str);
+        el.attr({ y:this._calcCenteredY(str) });
+      }
+
+      setValue(v){
+        this.value=v;
+        this._setText(this.topText,v);
+        this._setText(this.botText,v);
+        this._setText(this.flapText,v);
+      }
+
+      flipTo(next,dur=650){
+        if(this.isFlipping||next===this.value) return;
+        this.isFlipping=true;
+
+        const cur=this.value;
+        this._setText(this.topText,cur);
+        this._setText(this.botText,cur);
+        this._setText(this.flapText,cur);
+
+        const start=performance.now();
+        const cx=this.x+this.w/2;
+        const hingeY=this.y+this.half;
+        let switched=false;
+
+        const step=(now)=>{
+          const t=Math.min(1,(now-start)/dur);
+          const e=easeInOutCubic(t);
+
+          this.flap.transform({
+            translateX:cx,
+            translateY:hingeY,
+            scaleY:1-e,
+            scaleX:1
+          });
+
+          if(!switched && t>0.52){
+            switched=true;
+            this._setText(this.topText,next);
+            this._setText(this.botText,next);
+            this._setText(this.flapText,next);
+          }
+
+          if(t<1) requestAnimationFrame(step);
+          else{
+            this.flap.untransform();
+            this.value=next;
+            this.isFlipping=false;
+          }
+        };
+        requestAnimationFrame(step);
+      }
+    }
+
+    function createFlipDateMini(draw, opts = {}){
+      const cfgDate = cfg.date;
+      const DATE_LAYOUT_W = cfgDate.layoutW;
+      const DATE_LAYOUT_H = cfgDate.layoutH;
+      const DATE_SCALE = opts.dateScale ?? cfgDate.scale;
+
+      const dateRoot = draw.group();
+      let dateInner;
+      let yearText;
+      let mm;
+      let dd;
+      let dowText;
+
+      function build(){
+        dateRoot.clear();
+        dateInner = dateRoot.group();
+
+        const dateSvg = dateInner.nested()
+          .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
+          .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
+
+        dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+
+        yearText = dateSvg.text("2025")
+          .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
+          .fill("#1a1a1a")
+          .attr({
+            x: DATE_LAYOUT_W/2,
+            y: cfgDate.yearY,
+            "text-anchor":"middle",
+            "dominant-baseline":"middle"
+          });
+
+        const cardW = cfgDate.cardW;
+        const cardH = cfgDate.cardH;
+        const gap = cfgDate.cardGap;
+        const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
+        const y0 = cfgDate.cardY;
+
+        mm = new FlipUnit(dateSvg,x0,y0,cardW,cardH);
+        dd = new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH);
+
+        dowText = dateSvg.text("金")
+          .font({
+            family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
+            size:cfgDate.dowFont,
+            weight:600
+          })
+          .fill("rgba(0,0,0,.65)")
+          .attr({
+            x: x0 + cardW * 2 + gap + cfgDate.dowX,
+            y: y0 + cardH/2 + cfgDate.dowY,
+            "text-anchor":"start",
+            "dominant-baseline":"middle"
+          });
+      }
+
+      build();
+
+      function setDowLabel(d){
+        const w=weekJP[d.getDay()];
+        dowText.text(w);
+        if(w==="土") dowText.fill(theme.sat);
+        else if(w==="日") dowText.fill(theme.sun);
+        else dowText.fill("rgba(0,0,0,.65)");
+      }
+
+      function setAllFields(d){
+        yearText.text(d.getFullYear());
+        mm.setValue(pad2(d.getMonth()+1));
+        dd.setValue(pad2(d.getDate()));
+        setDowLabel(d);
+      }
+
+      let lastDateKey = null;
+      const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+
+      function updateDateIfNeeded(d){
+        const k = dateKey(d);
+        if(lastDateKey === null){
+          setAllFields(d);
+          lastDateKey = k;
+          return;
+        }
+        if(lastDateKey !== k){
+          const prev=new Date(d-1000);
+          dd.flipTo(pad2(d.getDate()));
+          if(prev.getMonth()!==d.getMonth()){
+            setTimeout(()=>mm.flipTo(pad2(d.getMonth()+1)),220);
+          }
+          yearText.text(d.getFullYear());
+          setDowLabel(d);
+          lastDateKey = k;
+        }
+      }
+
+      function clampIntoView(margin=cfgDate.clampMargin){
+        const b = dateRoot.bbox();
+        let dx=0, dy=0;
+
+        if(b.x < margin) dx = margin - b.x;
+        if(b.y < margin) dy = margin - b.y;
+        if(b.x2 > metrics.baseW - margin) dx = (metrics.baseW - margin) - b.x2;
+        if(b.y2 > metrics.baseH - margin) dy = (metrics.baseH - margin) - b.y2;
+
+        if(dx || dy) dateRoot.dmove(dx, dy);
+      }
+
+      function placeCentered(cx, cy){
+        dateRoot.center(cx, cy);
+        clampIntoView();
+      }
+
+      return {
+        updateDateIfNeeded,
+        placeCentered,
+        setScale(scale){
+          dateInner.untransform().scale(scale * DATE_SCALE);
+        },
+        rebuild(){
+          build();
+          lastDateKey = null;
+        },
+        setAllNow(d){
+          setAllFields(d);
+          lastDateKey = dateKey(d);
+        }
+      };
+    }
+
+    const dateMini = createFlipDateMini(draw, { dateScale: cfg.date.scale });
+
+    function applyMetrics(){
+      const { baseW, baseH, scale, cx, cy } = metrics;
+      draw.viewbox(0,0,baseW,baseH);
+      dateMini.setScale(scale);
+      dateMini.placeCentered(cx, cy);
+    }
+
+    let resizeRaf = null;
+    function onResize(){
+      if(resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        metrics = computeMetrics();
+        dateMini.rebuild();
+        applyMetrics();
+        dateMini.setAllNow(new Date());
+      });
+    }
+
+    function tickAlignedOncePerSecond(){
+      const d = new Date();
+      dateMini.updateDateIfNeeded(d);
+      setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
+    }
+
+    applyMetrics();
+    window.addEventListener("resize", onResize);
+    tickAlignedOncePerSecond();
+  </script>
 </body>
 </html>

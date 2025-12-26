@@ -33,26 +33,26 @@
   <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js"></script>
 
   <script>
-    /* ===== テーマ ===== */
-    const theme = {
-      frame:"#8a4f3a",
-      dial:"#f7f7f5",
-      text:"#101010",
-      dotMinor:"rgba(0,0,0,0.35)",
-      dotMajor:"#1a1a1a",
-      hour:"#111",
-      minute:"#111",
-      second:"#9aa0a6",
-      dateText:"rgba(0,0,0,0.70)",
-      dateSub:"rgba(0,0,0,0.55)",
-      sat:"#1f4fd8",
-      sun:"#d32f2f"
-    };
-
     const weekJP = ["日","月","火","水","木","金","土"];
     const pad2 = (n) => String(n).padStart(2,"0");
 
     const cfg = Object.freeze({
+      // Theme
+      theme: Object.freeze({
+        frame:"#8a4f3a",
+        dial:"#f7f7f5",
+        text:"#101010",
+        dotMinor:"rgba(0,0,0,0.35)",
+        dotMajor:"#1a1a1a",
+        hour:"#111",
+        minute:"#111",
+        second:"#9aa0a6",
+        dateText:"rgba(0,0,0,0.70)",
+        dateSub:"rgba(0,0,0,0.55)",
+        sat:"#1f4fd8",
+        sun:"#d32f2f"
+      }),
+
       // Base size for proportional scaling
       base: 400,
       baseMin: 240,
@@ -107,22 +107,29 @@
       })
     });
 
+    const theme = cfg.theme;
+
     const draw = SVG()
       .addTo("#mount")
       .size("100%","100%");
 
     function computeBase(){
       const size = Math.min(window.innerWidth, window.innerHeight);
-      return Math.max(cfg.baseMin, Math.floor(size * cfg.baseScale));
+      const cssBase = Math.max(cfg.baseMin, Math.floor(size * cfg.baseScale));
+      const dpr = window.devicePixelRatio || 1;
+      const base = Math.round(cssBase * dpr);
+      return { base, cssBase, dpr };
     }
 
-    function applyBase(base){
-      const scale = base / 400;
+    function applyBase(baseInfo){
+      const scale = baseInfo.base / 400;
       return {
-        base,
+        base: baseInfo.base,
         scale,
-        cx: base / 2,
-        cy: base / 2
+        cx: baseInfo.base / 2,
+        cy: baseInfo.base / 2,
+        cssBase: baseInfo.cssBase,
+        dpr: baseInfo.dpr
       };
     }
 
@@ -555,20 +562,23 @@
     window.addEventListener("resize", onResize);
 
     /* ===== tick ===== */
-    function tickAlignedOncePerSecond(){
-      const d = new Date();
-
+    function updateHandsForDate(d){
       const sec = d.getSeconds();
       const min = d.getMinutes() + sec/60;
       const hr  = (d.getHours()%12) + min/60;
 
       const hrDeg  = hr * 30;
       const minDeg = min * 6;
+      const secDeg = sec * 6;
+
       lastAngles = { hrDeg, minDeg };
+      hands.rotate(hrDeg, minDeg, secDeg, metrics.cx, metrics.cy);
+    }
 
-      hands.rotate(hrDeg, minDeg, sec * 6, metrics.cx, metrics.cy);
-
-      dateMini.placeDateOutsideAngle(hrDeg, minDeg);
+    function tickAlignedOncePerSecond(){
+      const d = new Date();
+      updateHandsForDate(d);
+      applyDateLayout(metrics.scale);
       dateMini.updateDateIfNeeded(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
