@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Analog Clock + Flip Date (stable centered)</title>
+  <title>Analog Clock + Date (outside angle)</title>
   <style>
     body{
       margin:0;
@@ -33,6 +33,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.2.4/dist/svg.min.js"></script>
 
   <script>
+    /* ===== テーマ ===== */
     const theme = {
       frame:"#8a4f3a",
       dial:"#f7f7f5",
@@ -42,15 +43,8 @@
       hour:"#111",
       minute:"#111",
       second:"#9aa0a6",
-
-      card:"#1f1f1f",
-      cardTop:"#262626",
-      cardText:"#f3f3f3",
-      seam:"rgba(255,255,255,.10)",
-      shadow:"rgba(0,0,0,.25)",
-
-      yearText:"#1a1a1a",
-      dowText:"rgba(0,0,0,.55)",
+      dateText:"rgba(0,0,0,0.70)",
+      dateSub:"rgba(0,0,0,0.55)",
       sat:"#1f4fd8",
       sun:"#d32f2f"
     };
@@ -58,18 +52,24 @@
     const weekJP = ["日","月","火","水","木","金","土"];
     const pad2 = (n) => String(n).padStart(2,"0");
 
-    const draw = SVG().addTo("#mount").viewbox(0,0,400,400).size("100%","100%");
-    const cx=200, cy=200;
+    const draw = SVG()
+      .addTo("#mount")
+      .viewbox(0,0,400,400)
+      .size("100%","100%");
+
+    const cx = 200, cy = 200;
 
     const polar = (deg, r) => {
       const a = deg * Math.PI / 180;
-      return { x: cx + Math.sin(a)*r, y: cy - Math.cos(a)*r };
+      return { x: cx + Math.sin(a) * r, y: cy - Math.cos(a) * r };
     };
+
     const normDeg = d => ((d % 360) + 360) % 360;
+
     const shortestDelta = (a, b) => {
       let d = normDeg(b) - normDeg(a);
-      if(d > 180) d -= 360;
-      if(d < -180) d += 360;
+      if (d > 180) d -= 360;
+      if (d < -180) d += 360;
       return d;
     };
 
@@ -91,7 +91,7 @@
     for(let i=0;i<60;i++){
       const p = polar(i*6, dialR*0.92);
       ticks.circle(i%5===0 ? 5 : 3)
-        .center(p.x,p.y)
+        .center(p.x, p.y)
         .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
     }
 
@@ -105,111 +105,228 @@
 
     function drawNumber(n, x, y){
       const yy = y + globalDy;
-      const font = {family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700};
       if(n < 10){
-        nums.text(String(n)).font(font).fill(theme.text)
+        nums.text(String(n))
+          .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+          .fill(theme.text)
           .attr({x, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
         return;
       }
       const s = String(n);
-      nums.text(s[0]).font(font).fill(theme.text)
+      nums.text(s[0])
+        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+        .fill(theme.text)
         .attr({x:x-dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-      nums.text(s[1]).font(font).fill(theme.text)
+      nums.text(s[1])
+        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+        .fill(theme.text)
         .attr({x:x+dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
     }
+
     for(let n=1;n<=12;n++){
       const p = polar((n%12)*30, numberRadius);
       drawNumber(n, p.x, p.y);
     }
 
-    /* =========================================================
-       Flip Date UI（flip-date と同じ比率で描画 → scale で縮小）
-       ========================================================= */
-    const DATE_SCALE = 0.55;
-    const DATE_LAYOUT_W = 560;
-    const DATE_LAYOUT_H = 300;
-    const CARD_FONT_SIZE = 64;
-
-    class FlipCard {
-      constructor(parent, x, y, w, h, text){
-        this.g = parent.group().move(x,y);
-        const half = h/2;
-
-        this.g.rect(w,h).move(2,3)
-          .fill(theme.shadow).radius(10).opacity(.35);
-
-        this.g.rect(w,h).move(0,0).fill(theme.card).radius(10);
-        this.g.rect(w,half).move(0,0).fill(theme.cardTop).radius(10);
-
-        this.g.line(10, half+0.5, w-10, half+0.5)
-          .stroke({width:1, color:theme.seam});
-
-        this.t = this.g.text(text)
-          .font({family:"ui-monospace, Menlo, Consolas, monospace", size:CARD_FONT_SIZE, weight:700})
-          .fill(theme.cardText)
-          .attr({x:w/2, y:h/2, "text-anchor":"middle", "dominant-baseline":"middle"});
-      }
-      set(v){ this.t.text(v); }
+    /* ===== Flip Date Mini（外角側） ===== */
+    function easeInOutCubic(t){
+      return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
     }
 
-    // 外側：毎秒 center() するだけ
-    const dateRoot = draw.group();
+    class FlipUnit{
+      constructor(draw, x, y, w, h, opts={}){
+        this.draw=draw; this.x=x; this.y=y; this.w=w; this.h=h;
+        this.half=h/2;
+        this.value="00";
+        this.isFlipping=false;
 
-    // 内側：固定レイアウト + scale はここだけ
+        this.opticalNudge = opts.opticalNudge ?? 5;
+
+        draw.rect(w,h).move(x+2,y+3)
+          .fill("rgba(0,0,0,.25)").radius(6).opacity(.35);
+
+        this.card=draw.group();
+        this.card.rect(w,h).move(x,y).fill("#1f1f1f").radius(6);
+        this.card.rect(w,this.half).move(x,y).fill("#262626").radius(6);
+
+        const seamY = y + this.half + 0.5;
+        this.card.line(x+6,seamY,x+w-6,seamY)
+          .stroke({width:1,color:"rgba(255,255,255,.1)"});
+
+        this.clipTop=draw.clip().add(draw.rect(w,this.half).move(x,y));
+        this.clipBot=draw.clip().add(draw.rect(w,this.half).move(x,y+this.half));
+
+        this.topStatic=draw.group().clipWith(this.clipTop);
+        this.botStatic=draw.group().clipWith(this.clipBot);
+        this.flap=draw.group().clipWith(this.clipTop);
+
+        this.font={ family:"ui-monospace, Menlo, Consolas, monospace", size:38, weight:700 };
+
+        this.measure = draw.text("00")
+          .font(this.font)
+          .fill("none")
+          .opacity(0)
+          .attr({ x:this.x+this.w/2, y:0, "text-anchor":"middle" });
+
+        this.topText=this._txt(this.topStatic,this.value);
+        this.botText=this._txt(this.botStatic,this.value);
+        this.flapText=this._txt(this.flap,this.value);
+
+        this._setText(this.topText,this.value);
+        this._setText(this.botText,this.value);
+        this._setText(this.flapText,this.value);
+      }
+
+      _txt(g,str){
+        return g.text(str)
+          .font(this.font)
+          .fill("#f3f3f3")
+          .attr({ x:this.x+this.w/2, y:this.y+this.h/2, "text-anchor":"middle" });
+      }
+
+      _calcCenteredY(str){
+        const cx=this.x+this.w/2;
+        const targetCy=this.y+this.h/2;
+
+        this.measure.text(str).attr({x:cx,y:0});
+        const b=this.measure.bbox();
+        const bboxCenter=b.y+b.height/2;
+
+        return targetCy - bboxCenter + this.opticalNudge;
+      }
+
+      _setText(el,str){
+        el.text(str);
+        el.attr({ y:this._calcCenteredY(str) });
+      }
+
+      setValue(v){
+        this.value=v;
+        this._setText(this.topText,v);
+        this._setText(this.botText,v);
+        this._setText(this.flapText,v);
+      }
+
+      flipTo(next,dur=650){
+        if(this.isFlipping||next===this.value) return;
+        this.isFlipping=true;
+
+        const cur=this.value;
+        this._setText(this.topText,cur);
+        this._setText(this.botText,cur);
+        this._setText(this.flapText,cur);
+
+        const start=performance.now();
+        const cx=this.x+this.w/2;
+        const hingeY=this.y+this.half;
+        let switched=false;
+
+        const step=(now)=>{
+          const t=Math.min(1,(now-start)/dur);
+          const e=easeInOutCubic(t);
+
+          this.flap.transform({
+            translateX:cx,
+            translateY:hingeY,
+            scaleY:1-e,
+            scaleX:1
+          });
+
+          if(!switched && t>0.52){
+            switched=true;
+            this._setText(this.topText,next);
+            this._setText(this.botText,next);
+            this._setText(this.flapText,next);
+          }
+
+          if(t<1) requestAnimationFrame(step);
+          else{
+            this.flap.untransform();
+            this.value=next;
+            this.isFlipping=false;
+          }
+        };
+        requestAnimationFrame(step);
+      }
+    }
+
+    const DATE_LAYOUT_W = 560;
+    const DATE_LAYOUT_H = 300;
+    const DATE_SCALE = 0.3;
+    const dateRoot = draw.group();
     const dateInner = dateRoot.group().scale(DATE_SCALE);
 
-    // 固定レイアウトの bbox を安定させる（年や曜日で幅が変わっても中心がズレない）
-    dateInner.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+    const dateSvg = dateInner.nested()
+      .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
+      .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
 
-    const cardW = 150, cardH = 120, cardGap = 24;
-    const x0 = (DATE_LAYOUT_W - (cardW * 2 + cardGap)) / 2;
-    const cardsY = 90;
-    const yearY = 52;
+    dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
 
-    const yearText = dateInner.text("2025")
-      .font({family:"Georgia,'Times New Roman',serif", size:44, weight:700})
-      .fill(theme.yearText)
-      .attr({
-        x: DATE_LAYOUT_W/2,
-        y: yearY,
-        "text-anchor":"middle",
-        "dominant-baseline":"middle"
-      });
+    const yearText = dateSvg.text("2025")
+      .font({family:"Georgia,'Times New Roman',serif",size:44,weight:700})
+      .fill("#1a1a1a")
+      .attr({x:DATE_LAYOUT_W/2,y:78,"text-anchor":"middle","dominant-baseline":"middle"});
 
-    const mmCard = new FlipCard(dateInner, x0, cardsY, cardW, cardH, "12");
-    const ddCard = new FlipCard(dateInner, x0 + cardW + cardGap, cardsY, cardW, cardH, "26");
+    const cardW=90,cardH=72,gap=14;
+    const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
+    const y0=128;
 
-    const dowText = dateInner.text("金")
+    const OPTICAL_NUDGE = 5;
+
+    const mm=new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+    const dd=new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+
+    const dowText=dateSvg.text("金")
       .font({
         family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-        size:40, weight:600
+        size:40,
+        weight:600
       })
-      .fill(theme.dowText)
+      .fill("rgba(0,0,0,.65)")
       .attr({
-        x: x0 + cardW * 2 + cardGap + 28,
-        y: cardsY + cardH/2,
+        x:x0+cardW*2+gap+28,
+        y:y0+cardH/2,
         "text-anchor":"start",
         "dominant-baseline":"middle"
       });
 
-    function setDate(d){
-      const y = d.getFullYear();
-      const m = pad2(d.getMonth()+1);
-      const day = pad2(d.getDate());
-      const w = weekJP[d.getDay()];
-
-      yearText.text(String(y));
-      mmCard.set(m);
-      ddCard.set(day);
+    function setDow(d){
+      const w=weekJP[d.getDay()];
       dowText.text(w);
-
       if(w==="土") dowText.fill(theme.sat);
       else if(w==="日") dowText.fill(theme.sun);
-      else dowText.fill(theme.dowText);
+      else dowText.fill("rgba(0,0,0,.65)");
     }
-    setDate(new Date());
 
-    // viewBox 内に収める（欠け防止）
+    function setAll(d){
+      yearText.text(d.getFullYear());
+      mm.setValue(pad2(d.getMonth()+1));
+      dd.setValue(pad2(d.getDate()));
+      setDow(d);
+    }
+
+    let lastDateKey = null;
+    const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+
+    function updateDateOnChange(d){
+      const k = dateKey(d);
+      if(lastDateKey === null){
+        setAll(d);
+        lastDateKey = k;
+        return;
+      }
+      if(lastDateKey !== k){
+        const prev=new Date(d-1000);
+        dd.flipTo(pad2(d.getDate()));
+        if(prev.getMonth()!==d.getMonth()){
+          setTimeout(()=>mm.flipTo(pad2(d.getMonth()+1)),220);
+        }
+        yearText.text(d.getFullYear());
+        setDow(d);
+        lastDateKey = k;
+      }
+    }
+
     function clampIntoView(margin=8){
       const b = dateRoot.bbox();
       let dx=0, dy=0;
@@ -230,13 +347,10 @@
       const ANGLE_OFFSET = 10;
       outerMid = normDeg(outerMid + ANGLE_OFFSET);
 
-      const r = dialR * 0.62;
+      const r = dialR * 0.35;
       const p = polar(outerMid, r);
 
-      // ★ここが本質：bbox中心を p に合わせる
       dateRoot.center(p.x, p.y);
-
-      // ★欠け防止
       clampIntoView(10);
     }
 
@@ -263,9 +377,6 @@
       .stroke({width:1, color:"rgba(0,0,0,.25)"});
 
     /* ===== tick ===== */
-    let lastDateKey = null;
-    const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-
     function tickAlignedOncePerSecond(){
       const d = new Date();
 
@@ -278,18 +389,14 @@
 
       hHand.untransform().rotate(hrDeg,  cx, cy);
       mHand.untransform().rotate(minDeg, cx, cy);
-      sHand.untransform().rotate(sec * 6, cx, cy);
+      sHand.untransform().rotate(sec*6,  cx, cy);
 
       placeDateOutsideAngle(hrDeg, minDeg);
-
-      const k = dateKey(d);
-      if(lastDateKey !== k){
-        setDate(d);
-        lastDateKey = k;
-      }
+      updateDateOnChange(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
+
     tickAlignedOncePerSecond();
   </script>
 </body>
