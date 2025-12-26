@@ -2,6 +2,7 @@
 
 ブラウザで動く時計（アナログ／フリップ）を集めた小さなコレクションです。
 `src` が開発・ローカル確認用、`docs` が GitHub Pages 用の公開領域です。
+プロジェクトの場所: https://github.com/igapyon/browser-clock-collection
 
 ## フォルダ構成
 - `src/` 開発・ローカル用
@@ -19,4 +20,3 @@
 
 ## ローカルで開く
 `src/` 以下の HTML をブラウザで直接開けば動作します。
-
