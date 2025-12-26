@@ -528,9 +528,11 @@
       draw.viewbox(0,0,base,base);
       drawFrame();
       drawTicksAndNumbers();
-
       hands.apply(scale, cx, cy);
+      applyDateLayout(scale);
+    }
 
+    function applyDateLayout(scale){
       dateMini.setScale(scale);
       dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
     }
