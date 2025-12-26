@@ -523,11 +523,16 @@
       dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
     }
 
+    let resizeRaf = null;
     function onResize(){
-      metrics = applyBase(computeBase());
-      dateMini.rebuild();
-      applyMetrics();
-      dateMini.setAllNow(new Date());
+      if(resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        metrics = applyBase(computeBase());
+        dateMini.rebuild();
+        applyMetrics();
+        dateMini.setAllNow(new Date());
+      });
     }
 
     applyMetrics();
