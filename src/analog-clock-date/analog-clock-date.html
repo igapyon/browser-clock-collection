@@ -17,11 +17,11 @@
       display:grid;
       gap:10px;
       justify-items:center;
-      padding:18px;
+      padding:0;
     }
     #mount{
-      width:min(92vw, 420px);
-      aspect-ratio:1/1;
+      width:min(100vw, 100vh);
+      height:min(100vw, 100vh);
     }
   </style>
 </head>
@@ -52,16 +52,88 @@
     const weekJP = ["日","月","火","水","木","金","土"];
     const pad2 = (n) => String(n).padStart(2,"0");
 
+    const cfg = Object.freeze({
+      // Base size for proportional scaling
+      base: 400,
+      baseMin: 240,
+      baseScale: 0.9,
+
+      // Frame + dial
+      frameInset: 8,
+      frameHighlight: 4,
+      frameShadow: 10,
+      dialR: 172,
+
+      // Ticks + numbers
+      tickRadiusRatio: 0.92,
+      tickMajor: 5,
+      tickMinor: 3,
+      numberRadiusRatio: 0.74,
+      numberFont: 42,
+      numberTightK: 0.27,
+
+      // Hands
+      hand: Object.freeze({
+        hourW: 12,
+        hourL: 100,
+        minW: 6,
+        minL: 145,
+        secW: 2,
+        secL: 155,
+        secTailW: 4,
+        secTailL: 44,
+        secTailOffsetY: 5
+      }),
+      centerDot: 14,
+
+      // Flip date mini
+      date: Object.freeze({
+        layoutW: 560,
+        layoutH: 300,
+        scale: 0.3,
+        yearFont: 44,
+        yearY: 78,
+        cardW: 90,
+        cardH: 72,
+        cardGap: 14,
+        cardY: 128,
+        dowFont: 36,
+        dowX: 11,
+        dowY: 15,
+        opticalNudge: 5,
+        angleOffset: 10,
+        radiusRatio: 0.32,
+        clampMargin: 10
+      })
+    });
+
     const draw = SVG()
       .addTo("#mount")
-      .viewbox(0,0,400,400)
       .size("100%","100%");
 
-    const cx = 200, cy = 200;
+    function computeBase(){
+      const size = Math.min(window.innerWidth, window.innerHeight);
+      return Math.max(cfg.baseMin, Math.floor(size * cfg.baseScale));
+    }
+
+    function applyBase(base){
+      const scale = base / 400;
+      return {
+        base,
+        scale,
+        cx: base / 2,
+        cy: base / 2
+      };
+    }
+
+    let metrics = applyBase(computeBase());
 
     const polar = (deg, r) => {
       const a = deg * Math.PI / 180;
-      return { x: cx + Math.sin(a) * r, y: cy - Math.cos(a) * r };
+      return {
+        x: metrics.cx + Math.sin(a) * r,
+        y: metrics.cy - Math.cos(a) * r
+      };
     };
 
     const normDeg = d => ((d % 360) + 360) % 360;
@@ -73,59 +145,68 @@
       return d;
     };
 
-    /* ===== フレーム ===== */
-    draw.circle(400).center(cx,cy).fill(theme.frame);
-    draw.circle(392).center(cx,cy).fill("none")
-      .stroke({width:4, color:"rgba(255,255,255,.1)"});
-    draw.circle(392).center(cx,cy).fill("none")
-      .stroke({width:10, color:"rgba(0,0,0,.22)"}).opacity(.35);
-
-    /* ===== 文字盤 ===== */
-    const dialR = 172;
-    draw.circle(dialR*2).center(cx,cy)
-      .fill(theme.dial)
-      .stroke({width:1, color:"rgba(0,0,0,.1)"});
-
-    /* ===== 目盛り ===== */
+    const gFrame = draw.group();
     const ticks = draw.group();
-    for(let i=0;i<60;i++){
-      const p = polar(i*6, dialR*0.92);
-      ticks.circle(i%5===0 ? 5 : 3)
-        .center(p.x, p.y)
-        .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
+    const nums = draw.group();
+    let dialR = 0;
+
+    function drawFrame(){
+      gFrame.clear();
+      const { base, scale, cx, cy } = metrics;
+      dialR = cfg.dialR * scale;
+
+      gFrame.circle(base).center(cx,cy).fill(theme.frame);
+      gFrame.circle(base - cfg.frameInset * scale).center(cx,cy).fill("none")
+        .stroke({width:cfg.frameHighlight * scale, color:"rgba(255,255,255,.1)"});
+      gFrame.circle(base - cfg.frameInset * scale).center(cx,cy).fill("none")
+        .stroke({width:cfg.frameShadow * scale, color:"rgba(0,0,0,.22)"}).opacity(.35);
+
+      gFrame.circle(dialR*2).center(cx,cy)
+        .fill(theme.dial)
+        .stroke({width:1 * scale, color:"rgba(0,0,0,.1)"});
     }
 
-    /* ===== 数字 ===== */
-    const nums = draw.group();
-    const numberRadius = dialR * 0.74;
-    const fontSize = 42;
-    const globalDy = -fontSize * 0.05;
-    const tightK = 0.27;
-    const dx = fontSize * tightK;
+    function drawTicksAndNumbers(){
+      ticks.clear();
+      nums.clear();
+      const { scale } = metrics;
+      const numberRadius = dialR * cfg.numberRadiusRatio;
+      const fontSize = cfg.numberFont * scale;
+      const globalDy = -fontSize * 0.05;
+      const tightK = cfg.numberTightK;
+      const dx = fontSize * tightK;
 
-    function drawNumber(n, x, y){
-      const yy = y + globalDy;
-      if(n < 10){
-        nums.text(String(n))
+      function drawNumber(n, x, y){
+        const yy = y + globalDy;
+        if(n < 10){
+          nums.text(String(n))
+            .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+            .fill(theme.text)
+            .attr({x, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
+          return;
+        }
+        const s = String(n);
+        nums.text(s[0])
           .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
           .fill(theme.text)
-          .attr({x, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-        return;
+          .attr({x:x-dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
+        nums.text(s[1])
+          .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
+          .fill(theme.text)
+          .attr({x:x+dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
       }
-      const s = String(n);
-      nums.text(s[0])
-        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
-        .fill(theme.text)
-        .attr({x:x-dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-      nums.text(s[1])
-        .font({family:"Georgia,'Times New Roman',serif", size:fontSize, weight:700})
-        .fill(theme.text)
-        .attr({x:x+dx, y:yy, "text-anchor":"middle", "dominant-baseline":"middle"});
-    }
 
-    for(let n=1;n<=12;n++){
-      const p = polar((n%12)*30, numberRadius);
-      drawNumber(n, p.x, p.y);
+      for(let i=0;i<60;i++){
+        const p = polar(i*6, dialR * cfg.tickRadiusRatio);
+        ticks.circle(i%5===0 ? cfg.tickMajor * scale : cfg.tickMinor * scale)
+          .center(p.x, p.y)
+          .fill(i%5===0 ? theme.dotMajor : theme.dotMinor);
+      }
+
+      for(let n=1;n<=12;n++){
+        const p = polar((n%12)*30, numberRadius);
+        drawNumber(n, p.x, p.y);
+      }
     }
 
     /* ===== Flip Date Mini（外角側） ===== */
@@ -250,131 +331,228 @@
       }
     }
 
-    const DATE_LAYOUT_W = 560;
-    const DATE_LAYOUT_H = 300;
-    const DATE_SCALE = 0.3;
-    const dateRoot = draw.group();
-    const dateInner = dateRoot.group().scale(DATE_SCALE);
+    function createFlipDateMini(draw, opts = {}){
+      const cfgDate = cfg.date;
+      const DATE_LAYOUT_W = cfgDate.layoutW;
+      const DATE_LAYOUT_H = cfgDate.layoutH;
+      const DATE_SCALE = opts.dateScale ?? cfgDate.scale;
 
-    const dateSvg = dateInner.nested()
-      .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
-      .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
+      const dateRoot = draw.group();
+      let dateInner;
+      let yearText;
+      let mm;
+      let dd;
+      let dowText;
 
-    dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+      function build(){
+        dateRoot.clear();
+        dateInner = dateRoot.group();
 
-    const yearText = dateSvg.text("2025")
-      .font({family:"Georgia,'Times New Roman',serif",size:44,weight:700})
-      .fill("#1a1a1a")
-      .attr({x:DATE_LAYOUT_W/2,y:78,"text-anchor":"middle","dominant-baseline":"middle"});
+        const dateSvg = dateInner.nested()
+          .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
+          .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
 
-    const cardW=90,cardH=72,gap=14;
-    const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
-    const y0=128;
+        dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
 
-    const OPTICAL_NUDGE = 5;
+        yearText = dateSvg.text("2025")
+          .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
+          .fill("#1a1a1a")
+          .attr({
+            x: DATE_LAYOUT_W/2,
+            y: cfgDate.yearY,
+            "text-anchor":"middle",
+            "dominant-baseline":"middle"
+          });
 
-    const mm=new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
-    const dd=new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+        const cardW = cfgDate.cardW;
+        const cardH = cfgDate.cardH;
+        const gap = cfgDate.cardGap;
+        const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
+        const y0 = cfgDate.cardY;
 
-    const dowText=dateSvg.text("金")
-      .font({
-        family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
-        size:36,
-        weight:600
-      })
-      .fill("rgba(0,0,0,.65)")
-      .attr({
-        x:x0+cardW*2+gap+11,
-        y:y0+cardH/2+15,
-        "text-anchor":"start",
-        "dominant-baseline":"middle"
-      });
+        const OPTICAL_NUDGE = cfgDate.opticalNudge;
 
-    function setDow(d){
-      const w=weekJP[d.getDay()];
-      dowText.text(w);
-      if(w==="土") dowText.fill(theme.sat);
-      else if(w==="日") dowText.fill(theme.sun);
-      else dowText.fill("rgba(0,0,0,.65)");
-    }
+        mm = new FlipUnit(dateSvg,x0,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
+        dd = new FlipUnit(dateSvg,x0+cardW+gap,y0,cardW,cardH,{opticalNudge:OPTICAL_NUDGE});
 
-    function setAll(d){
-      yearText.text(d.getFullYear());
-      mm.setValue(pad2(d.getMonth()+1));
-      dd.setValue(pad2(d.getDate()));
-      setDow(d);
-    }
-
-    let lastDateKey = null;
-    const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-
-    function updateDateOnChange(d){
-      const k = dateKey(d);
-      if(lastDateKey === null){
-        setAll(d);
-        lastDateKey = k;
-        return;
+        dowText = dateSvg.text("金")
+          .font({
+            family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
+            size:cfgDate.dowFont,
+            weight:600
+          })
+          .fill("rgba(0,0,0,.65)")
+          .attr({
+            x: x0 + cardW * 2 + gap + cfgDate.dowX,
+            y: y0 + cardH/2 + cfgDate.dowY,
+            "text-anchor":"start",
+            "dominant-baseline":"middle"
+          });
       }
-      if(lastDateKey !== k){
-        const prev=new Date(d-1000);
-        dd.flipTo(pad2(d.getDate()));
-        if(prev.getMonth()!==d.getMonth()){
-          setTimeout(()=>mm.flipTo(pad2(d.getMonth()+1)),220);
-        }
+
+      build();
+
+      function setDowLabel(d){
+        const w=weekJP[d.getDay()];
+        dowText.text(w);
+        if(w==="土") dowText.fill(theme.sat);
+        else if(w==="日") dowText.fill(theme.sun);
+        else dowText.fill("rgba(0,0,0,.65)");
+      }
+
+      function setAllFields(d){
         yearText.text(d.getFullYear());
-        setDow(d);
-        lastDateKey = k;
+        mm.setValue(pad2(d.getMonth()+1));
+        dd.setValue(pad2(d.getDate()));
+        setDowLabel(d);
       }
+
+      let lastDateKey = null;
+      const dateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+
+      function updateDateIfNeeded(d){
+        const k = dateKey(d);
+        if(lastDateKey === null){
+          setAllFields(d);
+          lastDateKey = k;
+          return;
+        }
+        if(lastDateKey !== k){
+          const prev=new Date(d-1000);
+          dd.flipTo(pad2(d.getDate()));
+          if(prev.getMonth()!==d.getMonth()){
+            setTimeout(()=>mm.flipTo(pad2(d.getMonth()+1)),220);
+          }
+          yearText.text(d.getFullYear());
+          setDowLabel(d);
+          lastDateKey = k;
+        }
+      }
+
+      function clampIntoView(margin=cfgDate.clampMargin){
+        const b = dateRoot.bbox();
+        let dx=0, dy=0;
+
+        if(b.x < margin) dx = margin - b.x;
+        if(b.y < margin) dy = margin - b.y;
+        if(b.x2 > metrics.base - margin) dx = (metrics.base - margin) - b.x2;
+        if(b.y2 > metrics.base - margin) dy = (metrics.base - margin) - b.y2;
+
+        if(dx || dy) dateRoot.dmove(dx, dy);
+      }
+
+      function placeDateOutsideAngle(hrDeg, minDeg){
+        const d = shortestDelta(minDeg, hrDeg);
+        const innerMid = normDeg(minDeg + d/2);
+        let outerMid = normDeg(innerMid + 180);
+
+        const ANGLE_OFFSET = cfgDate.angleOffset;
+        outerMid = normDeg(outerMid + ANGLE_OFFSET);
+
+        const r = dialR * cfgDate.radiusRatio;
+        const p = polar(outerMid, r);
+
+        dateRoot.center(p.x, p.y);
+        clampIntoView();
+      }
+
+      return {
+        updateDateIfNeeded,
+        placeDateOutsideAngle,
+        setScale(scale){
+          dateInner.untransform().scale(scale * DATE_SCALE);
+        },
+        rebuild(){
+          build();
+          lastDateKey = null;
+        },
+        setAllNow(d){
+          setAllFields(d);
+          lastDateKey = dateKey(d);
+        }
+      };
     }
 
-    function clampIntoView(margin=8){
-      const b = dateRoot.bbox();
-      let dx=0, dy=0;
-
-      if(b.x < margin) dx = margin - b.x;
-      if(b.y < margin) dy = margin - b.y;
-      if(b.x2 > 400 - margin) dx = (400 - margin) - b.x2;
-      if(b.y2 > 400 - margin) dy = (400 - margin) - b.y2;
-
-      if(dx || dy) dateRoot.dmove(dx, dy);
-    }
-
-    function placeDateOutsideAngle(hrDeg, minDeg){
-      const d = shortestDelta(minDeg, hrDeg);
-      const innerMid = normDeg(minDeg + d/2);
-      let outerMid = normDeg(innerMid + 180);
-
-      const ANGLE_OFFSET = 10;
-      outerMid = normDeg(outerMid + ANGLE_OFFSET);
-
-      const r = dialR * 0.32;
-      const p = polar(outerMid, r);
-
-      dateRoot.center(p.x, p.y);
-      clampIntoView(10);
-    }
+    const dateMini = createFlipDateMini(draw, { dateScale: 0.3 });
 
     /* ===== 針 ===== */
-    const hands = draw.group()
-      .attr({style:"filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))"});
+    function createHands(draw){
+      const hands = draw.group()
+        .attr({style:"filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))"});
 
-    function makeHand(w, l, color, radius=0){
-      return hands.rect(w, l)
-        .move(cx - w/2, cy - l)
-        .fill(color)
-        .radius(radius);
+      const hHand = hands.rect(0, 0).fill(theme.hour);
+      const mHand = hands.rect(0, 0).fill(theme.minute);
+
+      const sHand = hands.group();
+      const sMain = sHand.rect(0, 0).fill(theme.second);
+      const sTail = sHand.rect(0, 0).fill(theme.second);
+
+      const centerDot = draw.circle(0).center(0,0)
+        .fill("#cfcfcf")
+        .stroke({width:0, color:"rgba(0,0,0,.25)"});
+
+      function apply(scale, cx, cy){
+        hHand.size(cfg.hand.hourW * scale, cfg.hand.hourL * scale)
+          .move(cx - (cfg.hand.hourW * scale)/2, cy - cfg.hand.hourL * scale)
+          .radius(2 * scale);
+
+        mHand.size(cfg.hand.minW * scale, cfg.hand.minL * scale)
+          .move(cx - (cfg.hand.minW * scale)/2, cy - cfg.hand.minL * scale)
+          .radius(2 * scale);
+
+        sMain.size(cfg.hand.secW * scale, cfg.hand.secL * scale)
+          .move(cx - (cfg.hand.secW * scale)/2, cy - (cfg.hand.secL - 10) * scale);
+
+        sTail.size(cfg.hand.secTailW * scale, cfg.hand.secTailL * scale)
+          .move(cx - (cfg.hand.secTailW * scale)/2, cy + cfg.hand.secTailOffsetY * scale);
+
+        centerDot.size(cfg.centerDot * scale)
+          .center(cx,cy)
+          .stroke({width:1 * scale, color:"rgba(0,0,0,.25)"});
+      }
+
+      function rotate(hrDeg, minDeg, secDeg, cx, cy){
+        hHand.untransform().rotate(hrDeg,  cx, cy);
+        mHand.untransform().rotate(minDeg, cx, cy);
+        sHand.untransform().rotate(secDeg,  cx, cy);
+      }
+
+      return { apply, rotate };
     }
 
-    const hHand = makeHand(12, 100, theme.hour, 2);
-    const mHand = makeHand( 6, 145, theme.minute, 2);
+    const hands = createHands(draw);
 
-    const sHand = hands.group();
-    sHand.rect(2, 155).move(cx - 1, cy - 145).fill(theme.second);
-    sHand.rect(4,  44).move(cx - 2, cy +   5).fill(theme.second);
+    let lastAngles = { hrDeg: 0, minDeg: 0 };
 
-    draw.circle(14).center(cx,cy)
-      .fill("#cfcfcf")
-      .stroke({width:1, color:"rgba(0,0,0,.25)"});
+    function applyMetrics(){
+      const { base, scale, cx, cy } = metrics;
+
+      draw.viewbox(0,0,base,base);
+      drawFrame();
+      drawTicksAndNumbers();
+      hands.apply(scale, cx, cy);
+      applyDateLayout(scale);
+    }
+
+    function applyDateLayout(scale){
+      dateMini.setScale(scale);
+      dateMini.placeDateOutsideAngle(lastAngles.hrDeg, lastAngles.minDeg);
+    }
+
+    let resizeRaf = null;
+    function onResize(){
+      if(resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        metrics = applyBase(computeBase());
+        dateMini.rebuild();
+        applyMetrics();
+        dateMini.setAllNow(new Date());
+      });
+    }
+
+    applyMetrics();
+    window.addEventListener("resize", onResize);
 
     /* ===== tick ===== */
     function tickAlignedOncePerSecond(){
@@ -386,13 +564,12 @@
 
       const hrDeg  = hr * 30;
       const minDeg = min * 6;
+      lastAngles = { hrDeg, minDeg };
 
-      hHand.untransform().rotate(hrDeg,  cx, cy);
-      mHand.untransform().rotate(minDeg, cx, cy);
-      sHand.untransform().rotate(sec*6,  cx, cy);
+      hands.rotate(hrDeg, minDeg, sec * 6, metrics.cx, metrics.cy);
 
-      placeDateOutsideAngle(hrDeg, minDeg);
-      updateDateOnChange(d);
+      dateMini.placeDateOutsideAngle(hrDeg, minDeg);
+      dateMini.updateDateIfNeeded(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
