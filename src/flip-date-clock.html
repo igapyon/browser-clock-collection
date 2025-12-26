@@ -55,6 +55,7 @@
         layoutW: 560,
         layoutH: 300,
         scale: 1.0,
+        fillRatio: 0.98,
         yearFont: 44,
         yearY: 78,
         cardW: 90,
@@ -331,6 +332,9 @@
       return {
         updateDateIfNeeded,
         placeCentered,
+        getBBox(){
+          return dateRoot.bbox();
+        },
         setScale(scale){
           dateInner.untransform().scale(scale * DATE_SCALE);
         },
@@ -348,9 +352,17 @@
     const dateMini = createFlipDateMini(draw, { dateScale: cfg.date.scale });
 
     function applyMetrics(){
-      const { baseW, baseH, scale, cx, cy } = metrics;
+      const { baseW, baseH, cx, cy } = metrics;
       draw.viewbox(0,0,baseW,baseH);
-      dateMini.setScale(scale);
+
+      // Scale to fill the window while avoiding clipping.
+      dateMini.setScale(1);
+      dateMini.placeCentered(cx, cy);
+      const box = dateMini.getBBox();
+      const targetW = baseW * cfg.date.fillRatio;
+      const targetH = baseH * cfg.date.fillRatio;
+      const fitScale = Math.min(targetW / box.width, targetH / box.height);
+      dateMini.setScale(fitScale);
       dateMini.placeCentered(cx, cy);
     }
 
