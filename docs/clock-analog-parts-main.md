@@ -17,7 +17,7 @@
 - 外部ライブラリ: SVG.js（CDN）
 
 ## 使い方
-- `src/clock-analog-main.html` を直接ブラウザで開く
+- `src/parts/clock-analog-parts-main.html` を直接ブラウザで開く
 
 ## 変更の目安
 - サイズ: ページ内の `#mount` 幅を調整
