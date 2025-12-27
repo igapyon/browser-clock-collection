@@ -52,20 +52,22 @@
 
       // Flip date mini
       date: Object.freeze({
-        layoutW: 560,
+        layoutW: 360,
         layoutH: 300,
         scale: 1.0,
+        centerBiasY: -0.25,
+        guidePadding: 10,
         yearFont: 44,
-        yearY: 78,
+        yearY: 60,
         cardW: 90,
         cardH: 72,
         cardGap: 14,
-        cardY: 128,
+        cardY: 112,
         dowFont: 36,
         dowX: 11,
         dowY: 15,
         opticalNudge: 5,
-        clampMargin: 10
+        clampMargin: 0
       })
     });
 
@@ -217,8 +219,6 @@
 
     function createFlipDateMini(draw, opts = {}){
       const cfgDate = cfg.date;
-      const DATE_LAYOUT_W = cfgDate.layoutW;
-      const DATE_LAYOUT_H = cfgDate.layoutH;
       const DATE_SCALE = opts.dateScale ?? cfgDate.scale;
 
       const dateRoot = draw.group();
@@ -227,22 +227,30 @@
       let mm;
       let dd;
       let dowText;
+      let guideRect;
+      const layoutW = cfgDate.layoutW;
+      const layoutH = cfgDate.layoutH;
 
       function build(){
         dateRoot.clear();
         dateInner = dateRoot.group();
 
         const dateSvg = dateInner.nested()
-          .viewbox(0,0,DATE_LAYOUT_W,DATE_LAYOUT_H)
-          .size(DATE_LAYOUT_W, DATE_LAYOUT_H);
+          .viewbox(0,0,layoutW,layoutH)
+          .size(layoutW, layoutH);
 
-        dateSvg.rect(DATE_LAYOUT_W, DATE_LAYOUT_H).fill("none").opacity(0);
+        // bbox guide rect (invisible but used for measurement)
+        const pad = cfgDate.guidePadding;
+        guideRect = dateSvg.rect(layoutW - pad * 2, layoutH - pad * 2)
+          .move(pad, pad)
+          .fill("rgba(255,0,0,0.08)")
+          .opacity(1);
 
         yearText = dateSvg.text("2025")
           .font({family:"Georgia,'Times New Roman',serif",size:cfgDate.yearFont,weight:700})
           .fill("#1a1a1a")
           .attr({
-            x: DATE_LAYOUT_W/2,
+            x: layoutW/2,
             y: cfgDate.yearY,
             "text-anchor":"middle",
             "dominant-baseline":"middle"
@@ -251,7 +259,7 @@
         const cardW = cfgDate.cardW;
         const cardH = cfgDate.cardH;
         const gap = cfgDate.cardGap;
-        const x0=(DATE_LAYOUT_W-(cardW*2+gap))/2;
+        const x0=(layoutW-(cardW*2+gap))/2;
         const y0 = cfgDate.cardY;
 
         mm = new FlipUnit(dateSvg,x0,y0,cardW,cardH);
@@ -331,6 +339,14 @@
       return {
         updateDateIfNeeded,
         placeCentered,
+        getBBox(){
+          return guideRect ? guideRect.bbox() : dateRoot.bbox();
+        },
+        applyBiasY(bias){
+          const b = dateRoot.bbox();
+          dateRoot.dmove(0, b.height * bias);
+          clampIntoView();
+        },
         setScale(scale){
           dateInner.untransform().scale(scale * DATE_SCALE);
         },
@@ -348,10 +364,17 @@
     const dateMini = createFlipDateMini(draw, { dateScale: cfg.date.scale });
 
     function applyMetrics(){
-      const { baseW, baseH, scale, cx, cy } = metrics;
+      const { baseW, baseH, cx, cy } = metrics;
       draw.viewbox(0,0,baseW,baseH);
-      dateMini.setScale(scale);
+
+      // Fit based on the actual content bbox to reduce internal padding.
+      dateMini.setScale(1);
       dateMini.placeCentered(cx, cy);
+      const box = dateMini.getBBox();
+      const fitScale = Math.min(baseW / box.width, baseH / box.height);
+      dateMini.setScale(fitScale);
+      dateMini.placeCentered(cx, cy);
+      dateMini.applyBiasY(cfg.date.centerBiasY);
     }
 
     let resizeRaf = null;
