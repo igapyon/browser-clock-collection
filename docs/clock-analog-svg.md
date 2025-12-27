@@ -17,7 +17,7 @@
 - 外部ライブラリ: SVG.js（CDN）
 
 ## 使い方
-- `src/clock-analog.html` を直接ブラウザで開く
+- `src/clock-analog-svg.html` を直接ブラウザで開く
 
 ## 変更の目安
 - 日付の大きさ: `DATE_SCALE` を調整
