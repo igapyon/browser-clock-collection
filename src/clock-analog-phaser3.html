@@ -168,18 +168,15 @@
         const font = { fontFamily:"ui-monospace, Menlo, Consolas, monospace", fontSize:38, fontStyle:"700", color:"#f3f3f3" };
         const yCenter = this.h / 2 + this.opticalNudge;
 
-        this.topText = scene.add.text(this.w / 2, yCenter, this.value, font).setOrigin(0.5, 0.5);
-        this.botText = scene.add.text(this.w / 2, yCenter, this.value, font).setOrigin(0.5, 0.5);
-        this.flapText = scene.add.text(this.w / 2, this.half, this.value, font).setOrigin(0.5, 1);
-
-        this.container.add([this.topText, this.botText, this.flapText]);
+        const resolution = scene.game.config.resolution || window.devicePixelRatio || 1;
+        this.text = scene.add.text(this.w / 2, yCenter, this.value, font).setOrigin(0.5, 0.5);
+        if(this.text.setResolution) this.text.setResolution(resolution);
+        this.container.add(this.text);
       }
 
       setValue(v){
         this.value = v;
-        this.topText.setText(v);
-        this.botText.setText(v);
-        this.flapText.setText(v);
+        this.text.setText(v);
       }
 
       flipTo(next, dur = 650){
@@ -190,15 +187,15 @@
         this.setValue(cur);
 
         this.scene.tweens.add({
-          targets: this.flapText,
+          targets: this.text,
           scaleY: 0,
           duration: dur * 0.5,
           ease: "Cubic.easeIn",
           onComplete: () => {
             this.setValue(next);
-            this.flapText.setScale(1, 0);
+            this.text.setScale(1, 0);
             this.scene.tweens.add({
-              targets: this.flapText,
+              targets: this.text,
               scaleY: 1,
               duration: dur * 0.5,
               ease: "Cubic.easeOut",
@@ -215,6 +212,13 @@
     class ClockScene extends Phaser.Scene{
       constructor(){
         super("clock");
+      }
+
+      makeText(x, y, text, style){
+        const t = this.add.text(x, y, text, style);
+        const resolution = this.game.config.resolution || window.devicePixelRatio || 1;
+        if(t.setResolution) t.setResolution(resolution);
+        return t;
       }
 
       create(){
@@ -329,16 +333,16 @@
             color: theme.text
           };
           if(n < 10){
-            const t = this.add.text(p.x, p.y + globalDy, String(n), style).setOrigin(0.5, 0.5);
-            this.numsGroup.add(t);
-            continue;
+              const t = this.makeText(p.x, p.y + globalDy, String(n), style).setOrigin(0.5, 0.5);
+              this.numsGroup.add(t);
+              continue;
+            }
+            const s = String(n);
+            const t1 = this.makeText(p.x - dx, p.y + globalDy, s[0], style).setOrigin(0.5, 0.5);
+            const t2 = this.makeText(p.x + dx, p.y + globalDy, s[1], style).setOrigin(0.5, 0.5);
+            this.numsGroup.add([t1, t2]);
           }
-          const s = String(n);
-          const t1 = this.add.text(p.x - dx, p.y + globalDy, s[0], style).setOrigin(0.5, 0.5);
-          const t2 = this.add.text(p.x + dx, p.y + globalDy, s[1], style).setOrigin(0.5, 0.5);
-          this.numsGroup.add([t1, t2]);
         }
-      }
 
       createHands(){
         const container = this.add.container(0, 0);
@@ -372,7 +376,8 @@
 
             sTail.width = cfg.hand.secTailW * scale;
             sTail.height = cfg.hand.secTailL * scale;
-            sTail.setPosition(0, cfg.hand.secTailOffsetY * scale);
+            sTail.setScale(1, -1);
+            sTail.setPosition(0, -cfg.hand.secTailOffsetY * scale);
 
             sHand.setPosition(cx, cy);
 
@@ -416,7 +421,7 @@
             color: "#1a1a1a"
           };
 
-          yearText = this.add.text(DATE_LAYOUT_W / 2, cfgDate.yearY, "2025", yearStyle).setOrigin(0.5, 0.5);
+          yearText = this.makeText(DATE_LAYOUT_W / 2, cfgDate.yearY, "2025", yearStyle).setOrigin(0.5, 0.5);
           dateInner.add(yearText);
 
           const cardW = cfgDate.cardW;
@@ -435,7 +440,7 @@
             fontStyle: "600",
             color: "rgba(0,0,0,.65)"
           };
-          dowText = this.add.text(
+          dowText = this.makeText(
             x0 + cardW * 2 + gap + cfgDate.dowX,
             y0 + cardH / 2 + cfgDate.dowY,
             "金",
@@ -576,6 +581,12 @@
       backgroundColor: "transparent",
       transparent: true,
       scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+      resolution: window.devicePixelRatio || 1,
+      render: {
+        antialias: true,
+        pixelArt: false,
+        roundPixels: false
+      },
       scene: ClockScene
     };
 
