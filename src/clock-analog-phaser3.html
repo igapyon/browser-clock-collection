@@ -169,7 +169,9 @@
         const yCenter = this.h / 2 + this.opticalNudge;
 
         const resolution = scene.game.config.resolution || window.devicePixelRatio || 1;
-        this.text = scene.add.text(this.w / 2, yCenter, this.value, font).setOrigin(0.5, 0.5);
+        const textX = scene.snap ? scene.snap(this.w / 2) : this.w / 2;
+        const textY = scene.snap ? scene.snap(yCenter) : yCenter;
+        this.text = scene.add.text(textX, textY, this.value, font).setOrigin(0.5, 0.5);
         if(this.text.setResolution) this.text.setResolution(resolution);
         this.container.add(this.text);
       }
@@ -214,8 +216,13 @@
         super("clock");
       }
 
+      snap(v){
+        const resolution = this.game.config.resolution || window.devicePixelRatio || 1;
+        return Math.round(v * resolution) / resolution;
+      }
+
       makeText(x, y, text, style){
-        const t = this.add.text(x, y, text, style);
+        const t = this.add.text(this.snap(x), this.snap(y), text, style);
         const resolution = this.game.config.resolution || window.devicePixelRatio || 1;
         if(t.setResolution) t.setResolution(resolution);
         return t;
@@ -305,7 +312,7 @@
         const { scale } = this.metrics;
         const numberRadius = this.dialR * cfg.numberRadiusRatio;
         const fontSize = cfg.numberFont * scale;
-        const globalDy = -fontSize * 0.05;
+        const globalDy = -fontSize * 0.11;
         const tightK = cfg.numberTightK;
         const dx = fontSize * tightK;
 
@@ -333,16 +340,16 @@
             color: theme.text
           };
           if(n < 10){
-              const t = this.makeText(p.x, p.y + globalDy, String(n), style).setOrigin(0.5, 0.5);
-              this.numsGroup.add(t);
-              continue;
-            }
-            const s = String(n);
-            const t1 = this.makeText(p.x - dx, p.y + globalDy, s[0], style).setOrigin(0.5, 0.5);
-            const t2 = this.makeText(p.x + dx, p.y + globalDy, s[1], style).setOrigin(0.5, 0.5);
-            this.numsGroup.add([t1, t2]);
+            const t = this.makeText(p.x, p.y + globalDy, String(n), style).setOrigin(0.5, 0.5);
+            this.numsGroup.add(t);
+            continue;
           }
+          const s = String(n);
+          const t1 = this.makeText(p.x - dx, p.y + globalDy, s[0], style).setOrigin(0.5, 0.5);
+          const t2 = this.makeText(p.x + dx, p.y + globalDy, s[1], style).setOrigin(0.5, 0.5);
+          this.numsGroup.add([t1, t2]);
         }
+      }
 
       createHands(){
         const container = this.add.container(0, 0);
@@ -516,7 +523,11 @@
 
             const w = DATE_LAYOUT_W * currentScale;
             const h = DATE_LAYOUT_H * currentScale;
-            dateRoot.setPosition(p.x - w / 2, p.y - h / 2);
+            const px = p.x - w / 2;
+            const py = p.y - h / 2;
+            const snappedX = this.snap ? this.snap(px) : px;
+            const snappedY = this.snap ? this.snap(py) : py;
+            dateRoot.setPosition(snappedX, snappedY);
             clampIntoView();
           };
 
