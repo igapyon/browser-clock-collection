@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analog Clock + Date (Phaser 3)</title>
+  <style>
+    body{
+      margin:0;
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      background:#ececec;
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
+    }
+    .wrap{
+      display:grid;
+      gap:10px;
+      justify-items:center;
+      padding:0;
+      width:100vw;
+      height:100vh;
+    }
+    #mount{
+      width:100%;
+      height:100%;
+    }
+    canvas{ display:block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="mount" aria-label="アナログ時計"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script>
+    const weekJP = ["日","月","火","水","木","金","土"];
+    const pad2 = (n) => String(n).padStart(2,"0");
+
+    const cfg = Object.freeze({
+      theme: Object.freeze({
+        frame:"#8a4f3a",
+        dial:"#f7f7f5",
+        text:"#101010",
+        dotMinor:"rgba(0,0,0,0.35)",
+        dotMajor:"#1a1a1a",
+        hour:"#111",
+        minute:"#111",
+        second:"#9aa0a6",
+        dateText:"rgba(0,0,0,0.70)",
+        dateSub:"rgba(0,0,0,0.55)",
+        sat:"#1f4fd8",
+        sun:"#d32f2f"
+      }),
+
+      base: 400,
+      baseMin: 240,
+      baseScale: 0.9,
+
+      frameInset: 8,
+      frameHighlight: 4,
+      frameShadow: 10,
+      dialR: 172,
+
+      tickRadiusRatio: 0.92,
+      tickMajor: 5,
+      tickMinor: 3,
+      numberRadiusRatio: 0.74,
+      numberFont: 42,
+      numberTightK: 0.27,
+
+      hand: Object.freeze({
+        hourW: 12,
+        hourL: 100,
+        minW: 6,
+        minL: 145,
+        secW: 2,
+        secL: 155,
+        secTailW: 4,
+        secTailL: 44,
+        secTailOffsetY: 5
+      }),
+      centerDot: 14,
+
+      date: Object.freeze({
+        layoutW: 560,
+        layoutH: 300,
+        scale: 0.3,
+        yearFont: 44,
+        yearY: 78,
+        cardW: 90,
+        cardH: 72,
+        cardGap: 14,
+        cardY: 128,
+        dowFont: 36,
+        dowX: 11,
+        dowY: 15,
+        opticalNudge: 5,
+        angleOffset: 10,
+        radiusRatio: 0.32,
+        clampMargin: 10
+      })
+    });
+
+    const theme = cfg.theme;
+
+    const parseColor = (value) => {
+      if(value.startsWith("#")){
+        const hex = value.slice(1);
+        const color = parseInt(hex.length === 3
+          ? hex.split("").map(c => c + c).join("")
+          : hex, 16);
+        return { color, alpha: 1 };
+      }
+      const m = value.match(/rgba?\(([^)]+)\)/);
+      if(m){
+        const parts = m[1].split(",").map(p => p.trim());
+        const r = Number(parts[0]);
+        const g = Number(parts[1]);
+        const b = Number(parts[2]);
+        const a = parts[3] !== undefined ? Number(parts[3]) : 1;
+        return { color: (r << 16) | (g << 8) | b, alpha: a };
+      }
+      return { color: 0x000000, alpha: 1 };
+    };
+
+    const normDeg = (d) => ((d % 360) + 360) % 360;
+    const shortestDelta = (a, b) => {
+      let d = normDeg(b) - normDeg(a);
+      if(d > 180) d -= 360;
+      if(d < -180) d += 360;
+      return d;
+    };
+
+    class FlipUnit{
+      constructor(scene, x, y, w, h, opts = {}){
+        this.scene = scene;
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
+        this.half = h / 2;
+        this.value = "00";
+        this.isFlipping = false;
+        this.opticalNudge = opts.opticalNudge ?? 5;
+
+        this.container = scene.add.container(x, y);
+
+        const shadow = scene.add.graphics();
+        shadow.fillStyle(0x000000, 0.25);
+        shadow.fillRoundedRect(2, 3, w, h, 6);
+        shadow.setAlpha(0.35);
+        this.container.add(shadow);
+
+        const card = scene.add.graphics();
+        card.fillStyle(0x1f1f1f, 1);
+        card.fillRoundedRect(0, 0, w, h, 6);
+        card.fillStyle(0x262626, 1);
+        card.fillRoundedRect(0, 0, w, this.half, 6);
+        this.container.add(card);
+
+        const seam = scene.add.graphics();
+        seam.lineStyle(1, 0xffffff, 0.1);
+        seam.lineBetween(6, this.half + 0.5, w - 6, this.half + 0.5);
+        this.container.add(seam);
+
+        const font = { fontFamily:"ui-monospace, Menlo, Consolas, monospace", fontSize:38, fontStyle:"700", color:"#f3f3f3" };
+        const yCenter = this.h / 2 + this.opticalNudge;
+
+        this.topText = scene.add.text(this.w / 2, yCenter, this.value, font).setOrigin(0.5, 0.5);
+        this.botText = scene.add.text(this.w / 2, yCenter, this.value, font).setOrigin(0.5, 0.5);
+        this.flapText = scene.add.text(this.w / 2, this.half, this.value, font).setOrigin(0.5, 1);
+
+        this.container.add([this.topText, this.botText, this.flapText]);
+      }
+
+      setValue(v){
+        this.value = v;
+        this.topText.setText(v);
+        this.botText.setText(v);
+        this.flapText.setText(v);
+      }
+
+      flipTo(next, dur = 650){
+        if(this.isFlipping || next === this.value) return;
+        this.isFlipping = true;
+
+        const cur = this.value;
+        this.setValue(cur);
+
+        this.scene.tweens.add({
+          targets: this.flapText,
+          scaleY: 0,
+          duration: dur * 0.5,
+          ease: "Cubic.easeIn",
+          onComplete: () => {
+            this.setValue(next);
+            this.flapText.setScale(1, 0);
+            this.scene.tweens.add({
+              targets: this.flapText,
+              scaleY: 1,
+              duration: dur * 0.5,
+              ease: "Cubic.easeOut",
+              onComplete: () => {
+                this.value = next;
+                this.isFlipping = false;
+              }
+            });
+          }
+        });
+      }
+    }
+
+    class ClockScene extends Phaser.Scene{
+      constructor(){
+        super("clock");
+      }
+
+      create(){
+        this.metrics = null;
+        this.lastAngles = { hrDeg: 0, minDeg: 0 };
+
+        this.stage = this.add.container(0, 0);
+        this.frameG = this.add.graphics();
+        this.ticksG = this.add.graphics();
+        this.numsGroup = this.add.container(0, 0);
+
+        this.hands = this.createHands();
+        this.dateMini = this.createFlipDateMini({ dateScale: 0.3 });
+
+        this.stage.add([this.frameG, this.ticksG, this.numsGroup, this.hands.container, this.dateMini.container]);
+
+        this.applyMetrics();
+        this.scale.on("resize", this.onResize, this);
+        this.tickAlignedOncePerSecond();
+      }
+
+      computeBase(width, height){
+        const size = Math.min(width, height);
+        const base = Math.max(cfg.baseMin, Math.floor(size * cfg.baseScale));
+        const scale = base / cfg.base;
+        return {
+          base,
+          scale,
+          cx: base / 2,
+          cy: base / 2,
+          offsetX: (width - base) / 2,
+          offsetY: (height - base) / 2
+        };
+      }
+
+      polar(deg, r){
+        const a = Phaser.Math.DegToRad(deg);
+        return {
+          x: this.metrics.cx + Math.sin(a) * r,
+          y: this.metrics.cy - Math.cos(a) * r
+        };
+      }
+
+      applyMetrics(){
+        const width = this.scale.gameSize.width;
+        const height = this.scale.gameSize.height;
+        this.metrics = this.computeBase(width, height);
+        this.stage.setPosition(this.metrics.offsetX, this.metrics.offsetY);
+
+        this.drawFrame();
+        this.drawTicksAndNumbers();
+        this.hands.apply(this.metrics.scale, this.metrics.cx, this.metrics.cy);
+        this.applyDateLayout(this.metrics.scale);
+      }
+
+      drawFrame(){
+        const { base, scale, cx, cy } = this.metrics;
+        const dialR = cfg.dialR * scale;
+        this.dialR = dialR;
+
+        this.frameG.clear();
+        const frame = parseColor(theme.frame);
+        this.frameG.fillStyle(frame.color, frame.alpha);
+        this.frameG.fillCircle(cx, cy, base / 2);
+
+        const highlight = parseColor("rgba(255,255,255,.1)");
+        this.frameG.lineStyle(cfg.frameHighlight * scale, highlight.color, highlight.alpha);
+        this.frameG.strokeCircle(cx, cy, (base - cfg.frameInset * scale) / 2);
+
+        const shadow = parseColor("rgba(0,0,0,.22)");
+        this.frameG.lineStyle(cfg.frameShadow * scale, shadow.color, shadow.alpha * 0.35);
+        this.frameG.strokeCircle(cx, cy, (base - cfg.frameInset * scale) / 2);
+
+        const dial = parseColor(theme.dial);
+        this.frameG.fillStyle(dial.color, dial.alpha);
+        this.frameG.fillCircle(cx, cy, dialR);
+
+        const dialStroke = parseColor("rgba(0,0,0,.1)");
+        this.frameG.lineStyle(1 * scale, dialStroke.color, dialStroke.alpha);
+        this.frameG.strokeCircle(cx, cy, dialR);
+      }
+
+      drawTicksAndNumbers(){
+        const { scale } = this.metrics;
+        const numberRadius = this.dialR * cfg.numberRadiusRatio;
+        const fontSize = cfg.numberFont * scale;
+        const globalDy = -fontSize * 0.05;
+        const tightK = cfg.numberTightK;
+        const dx = fontSize * tightK;
+
+        this.ticksG.clear();
+        this.numsGroup.removeAll(true);
+
+        const minor = parseColor(theme.dotMinor);
+        const major = parseColor(theme.dotMajor);
+
+        for(let i = 0; i < 60; i++){
+          const p = this.polar(i * 6, this.dialR * cfg.tickRadiusRatio);
+          const isMajor = i % 5 === 0;
+          const dot = isMajor ? major : minor;
+          const r = (isMajor ? cfg.tickMajor : cfg.tickMinor) * scale;
+          this.ticksG.fillStyle(dot.color, dot.alpha);
+          this.ticksG.fillCircle(p.x, p.y, r / 2);
+        }
+
+        for(let n = 1; n <= 12; n++){
+          const p = this.polar((n % 12) * 30, numberRadius);
+          const style = {
+            fontFamily:"Georgia,'Times New Roman',serif",
+            fontSize: fontSize,
+            fontStyle: "700",
+            color: theme.text
+          };
+          if(n < 10){
+            const t = this.add.text(p.x, p.y + globalDy, String(n), style).setOrigin(0.5, 0.5);
+            this.numsGroup.add(t);
+            continue;
+          }
+          const s = String(n);
+          const t1 = this.add.text(p.x - dx, p.y + globalDy, s[0], style).setOrigin(0.5, 0.5);
+          const t2 = this.add.text(p.x + dx, p.y + globalDy, s[1], style).setOrigin(0.5, 0.5);
+          this.numsGroup.add([t1, t2]);
+        }
+      }
+
+      createHands(){
+        const container = this.add.container(0, 0);
+
+        const hHand = this.add.rectangle(0, 0, 10, 10, parseColor(theme.hour).color).setOrigin(0.5, 1);
+        const mHand = this.add.rectangle(0, 0, 10, 10, parseColor(theme.minute).color).setOrigin(0.5, 1);
+
+        const sHand = this.add.container(0, 0);
+        const sMain = this.add.rectangle(0, 0, 10, 10, parseColor(theme.second).color).setOrigin(0.5, 1);
+        const sTail = this.add.rectangle(0, 0, 10, 10, parseColor(theme.second).color).setOrigin(0.5, 0);
+        sHand.add([sMain, sTail]);
+
+        const centerDot = this.add.circle(0, 0, 1, 0xcfcfcf).setStrokeStyle(1, 0x000000, 0.25);
+
+        container.add([hHand, mHand, sHand, centerDot]);
+
+        return {
+          container,
+          apply: (scale, cx, cy) => {
+            hHand.width = cfg.hand.hourW * scale;
+            hHand.height = cfg.hand.hourL * scale;
+            hHand.setPosition(cx, cy);
+
+            mHand.width = cfg.hand.minW * scale;
+            mHand.height = cfg.hand.minL * scale;
+            mHand.setPosition(cx, cy);
+
+            sMain.width = cfg.hand.secW * scale;
+            sMain.height = cfg.hand.secL * scale;
+            sMain.setPosition(0, 10 * scale);
+
+            sTail.width = cfg.hand.secTailW * scale;
+            sTail.height = cfg.hand.secTailL * scale;
+            sTail.setPosition(0, cfg.hand.secTailOffsetY * scale);
+
+            sHand.setPosition(cx, cy);
+
+            centerDot.setRadius(cfg.centerDot * scale / 2);
+            centerDot.setPosition(cx, cy);
+            centerDot.setStrokeStyle(1 * scale, 0x000000, 0.25);
+          },
+          rotate: (hrDeg, minDeg, secDeg, cx, cy) => {
+            const offset = 180;
+            hHand.setRotation(Phaser.Math.DegToRad(hrDeg + offset));
+            mHand.setRotation(Phaser.Math.DegToRad(minDeg + offset));
+            sHand.setRotation(Phaser.Math.DegToRad(secDeg + offset));
+          }
+        };
+      }
+
+      createFlipDateMini(opts = {}){
+        const cfgDate = cfg.date;
+        const DATE_LAYOUT_W = cfgDate.layoutW;
+        const DATE_LAYOUT_H = cfgDate.layoutH;
+          const DATE_SCALE = opts.dateScale ?? cfgDate.scale;
+          let currentScale = DATE_SCALE;
+
+        const dateRoot = this.add.container(0, 0);
+        let dateInner = this.add.container(0, 0);
+        dateRoot.add(dateInner);
+
+        let yearText;
+        let mm;
+        let dd;
+        let dowText;
+        let lastDateKey = null;
+
+        const build = () => {
+          dateInner.removeAll(true);
+
+          const yearStyle = {
+            fontFamily:"Georgia,'Times New Roman',serif",
+            fontSize: cfgDate.yearFont,
+            fontStyle: "700",
+            color: "#1a1a1a"
+          };
+
+          yearText = this.add.text(DATE_LAYOUT_W / 2, cfgDate.yearY, "2025", yearStyle).setOrigin(0.5, 0.5);
+          dateInner.add(yearText);
+
+          const cardW = cfgDate.cardW;
+          const cardH = cfgDate.cardH;
+          const gap = cfgDate.cardGap;
+          const x0 = (DATE_LAYOUT_W - (cardW * 2 + gap)) / 2;
+          const y0 = cfgDate.cardY;
+
+          mm = new FlipUnit(this, x0, y0, cardW, cardH, { opticalNudge: cfgDate.opticalNudge });
+          dd = new FlipUnit(this, x0 + cardW + gap, y0, cardW, cardH, { opticalNudge: cfgDate.opticalNudge });
+          dateInner.add([mm.container, dd.container]);
+
+          const dowStyle = {
+            fontFamily:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
+            fontSize: cfgDate.dowFont,
+            fontStyle: "600",
+            color: "rgba(0,0,0,.65)"
+          };
+          dowText = this.add.text(
+            x0 + cardW * 2 + gap + cfgDate.dowX,
+            y0 + cardH / 2 + cfgDate.dowY,
+            "金",
+            dowStyle
+          ).setOrigin(0, 0.5);
+          dateInner.add(dowText);
+        };
+
+        build();
+
+        const setDowLabel = (d) => {
+          const w = weekJP[d.getDay()];
+          dowText.setText(w);
+          if(w === "土") dowText.setColor(theme.sat);
+          else if(w === "日") dowText.setColor(theme.sun);
+          else dowText.setColor("rgba(0,0,0,.65)");
+        };
+
+        const setAllFields = (d) => {
+          yearText.setText(d.getFullYear());
+          mm.setValue(pad2(d.getMonth() + 1));
+          dd.setValue(pad2(d.getDate()));
+          setDowLabel(d);
+        };
+
+        const dateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+        const updateDateIfNeeded = (d) => {
+          const k = dateKey(d);
+          if(lastDateKey === null){
+            setAllFields(d);
+            lastDateKey = k;
+            return;
+          }
+          if(lastDateKey !== k){
+            const prev = new Date(d - 1000);
+            dd.flipTo(pad2(d.getDate()));
+            if(prev.getMonth() !== d.getMonth()){
+              this.time.delayedCall(220, () => mm.flipTo(pad2(d.getMonth() + 1)));
+            }
+            yearText.setText(d.getFullYear());
+            setDowLabel(d);
+            lastDateKey = k;
+          }
+        };
+
+          const clampIntoView = (margin = cfgDate.clampMargin) => {
+            const b = dateRoot.getBounds();
+          const minX = this.metrics.offsetX + margin;
+          const minY = this.metrics.offsetY + margin;
+          const maxX = this.metrics.offsetX + this.metrics.base - margin;
+          const maxY = this.metrics.offsetY + this.metrics.base - margin;
+          let dx = 0;
+          let dy = 0;
+
+          if(b.x < minX) dx = minX - b.x;
+          if(b.y < minY) dy = minY - b.y;
+          if(b.right > maxX) dx = maxX - b.right;
+          if(b.bottom > maxY) dy = maxY - b.bottom;
+
+          if(dx || dy) dateRoot.setPosition(dateRoot.x + dx, dateRoot.y + dy);
+        };
+
+          const placeDateOutsideAngle = (hrDeg, minDeg) => {
+            const d = shortestDelta(minDeg, hrDeg);
+            const innerMid = normDeg(minDeg + d / 2);
+            let outerMid = normDeg(innerMid + 180);
+
+            outerMid = normDeg(outerMid + cfgDate.angleOffset);
+
+            const r = this.dialR * cfgDate.radiusRatio;
+            const p = this.polar(outerMid, r);
+
+            const w = DATE_LAYOUT_W * currentScale;
+            const h = DATE_LAYOUT_H * currentScale;
+            dateRoot.setPosition(p.x - w / 2, p.y - h / 2);
+            clampIntoView();
+          };
+
+        return {
+          container: dateRoot,
+          updateDateIfNeeded,
+          placeDateOutsideAngle,
+            setScale: (scale) => {
+              currentScale = scale * DATE_SCALE;
+              dateInner.setScale(currentScale);
+            },
+          rebuild: () => {
+            build();
+            lastDateKey = null;
+          },
+          setAllNow: (d) => {
+            setAllFields(d);
+            lastDateKey = dateKey(d);
+          }
+        };
+      }
+
+      applyDateLayout(scale){
+        this.dateMini.setScale(scale);
+        this.dateMini.placeDateOutsideAngle(this.lastAngles.hrDeg, this.lastAngles.minDeg);
+      }
+
+      onResize(){
+        this.applyMetrics();
+        this.dateMini.rebuild();
+        this.dateMini.setAllNow(new Date());
+      }
+
+      updateHandsForDate(d){
+        const sec = d.getSeconds();
+        const min = d.getMinutes() + sec / 60;
+        const hr = (d.getHours() % 12) + min / 60;
+
+        const hrDeg = hr * 30;
+        const minDeg = min * 6;
+        const secDeg = sec * 6;
+
+        this.lastAngles = { hrDeg, minDeg };
+        this.hands.rotate(hrDeg, minDeg, secDeg, this.metrics.cx, this.metrics.cy);
+      }
+
+      tickAlignedOncePerSecond(){
+        const d = new Date();
+        this.updateHandsForDate(d);
+        this.applyDateLayout(this.metrics.scale);
+        this.dateMini.updateDateIfNeeded(d);
+
+        setTimeout(() => this.tickAlignedOncePerSecond(), 1000 - d.getMilliseconds());
+      }
+    }
+
+    const config = {
+      type: Phaser.AUTO,
+      parent: "mount",
+      width: window.innerWidth,
+      height: window.innerHeight,
+      backgroundColor: "transparent",
+      transparent: true,
+      scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+      scene: ClockScene
+    };
+
+    new Phaser.Game(config);
+  </script>
+</body>
+</html>
