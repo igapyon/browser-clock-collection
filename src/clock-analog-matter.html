@@ -40,6 +40,7 @@
     const degToRad = (d) => d * Math.PI / 180;
 
     const cfg = Object.freeze({
+      physicsEnabled: false,
       // Theme
       theme: Object.freeze({
         frame:"#8a4f3a",
@@ -122,7 +123,9 @@
     const engine = Engine.create();
     engine.world.gravity.y = 0;
     const runner = Runner.create();
-    Runner.run(runner, engine);
+    if (cfg.physicsEnabled) {
+      Runner.run(runner, engine);
+    }
 
     function computeBase(){
       const size = Math.min(window.innerWidth, window.innerHeight);
@@ -636,7 +639,9 @@
       drawFrame();
       drawTicksAndNumbers();
       hands.apply(scale, cx, cy);
-      hands.rebuildPhysics(scale, cx, cy);
+      if (cfg.physicsEnabled) {
+        hands.rebuildPhysics(scale, cx, cy);
+      }
       applyDateLayout(scale);
     }
 
@@ -660,21 +665,23 @@
     applyMetrics();
     window.addEventListener("resize", onResize);
 
-    let handsRaf = null;
-    function syncHandsFromPhysics(){
-      if(hands.physics){
-        const { hour, minute, second } = hands.physics.bodies;
-        hands.rotate(
-          radToDeg(hour.angle),
-          radToDeg(minute.angle),
-          radToDeg(second.angle),
-          metrics.cx,
-          metrics.cy
-        );
+    if (cfg.physicsEnabled) {
+      let handsRaf = null;
+      function syncHandsFromPhysics(){
+        if(hands.physics){
+          const { hour, minute, second } = hands.physics.bodies;
+          hands.rotate(
+            radToDeg(hour.angle),
+            radToDeg(minute.angle),
+            radToDeg(second.angle),
+            metrics.cx,
+            metrics.cy
+          );
+        }
+        handsRaf = requestAnimationFrame(syncHandsFromPhysics);
       }
-      handsRaf = requestAnimationFrame(syncHandsFromPhysics);
+      syncHandsFromPhysics();
     }
-    syncHandsFromPhysics();
 
     /* ===== tick ===== */
     function updateHandsForDate(d){
@@ -687,7 +694,7 @@
       const secDeg = sec * 6;
 
       lastAngles = { hrDeg, minDeg };
-      if(hands.physics){
+      if(cfg.physicsEnabled && hands.physics){
         Body.setAngle(hands.physics.bodies.hour, degToRad(hrDeg));
         Body.setAngle(hands.physics.bodies.minute, degToRad(minDeg));
         Body.setAngle(hands.physics.bodies.second, degToRad(secDeg));
