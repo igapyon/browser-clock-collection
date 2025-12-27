@@ -40,7 +40,6 @@
     const degToRad = (d) => d * Math.PI / 180;
 
     const cfg = Object.freeze({
-      physicsEnabled: false,
       // Theme
       theme: Object.freeze({
         frame:"#8a4f3a",
@@ -89,6 +88,20 @@
         secTailOffsetY: 5
       }),
       centerDot: 14,
+      secSpring: Object.freeze({
+        k: 0.016,
+        c: 0.19,
+        tickKick: 0.2,
+        maxErrDeg: 6,
+        leadSnapDeg: 2,
+        lagSnapDeg: 4,
+        settleDeg: 1.5
+      }),
+      debug: Object.freeze({
+        showSecTrace: false,
+        targetColor: "#e04646",
+        bodyColor: "#3b82f6"
+      }),
 
       // Flip date mini
       date: Object.freeze({
@@ -119,13 +132,11 @@
       .addTo("#mount")
       .size("100%","100%");
 
-    const { Engine, Runner, World, Bodies, Body, Constraint } = Matter;
+    const { Engine, Runner, World, Bodies, Body, Constraint, Events } = Matter;
     const engine = Engine.create();
     engine.world.gravity.y = 0;
     const runner = Runner.create();
-    if (cfg.physicsEnabled) {
-      Runner.run(runner, engine);
-    }
+    Runner.run(runner, engine);
 
     function computeBase(){
       const size = Math.min(window.innerWidth, window.innerHeight);
@@ -158,6 +169,12 @@
     };
 
     const normDeg = d => ((d % 360) + 360) % 360;
+    const wrapRad = (r) => {
+      const twoPi = Math.PI * 2;
+      let v = (r + Math.PI) % twoPi;
+      if (v < 0) v += twoPi;
+      return v - Math.PI;
+    };
 
     const shortestDelta = (a, b) => {
       let d = normDeg(b) - normDeg(a);
@@ -169,6 +186,7 @@
     const gFrame = draw.group();
     const ticks = draw.group();
     const nums = draw.group();
+    const debugG = draw.group();
     let dialR = 0;
 
     function drawFrame(){
@@ -581,54 +599,89 @@
         sHand.untransform().rotate(secDeg,  cx, cy);
       }
 
+      function rotateHourMinute(hrDeg, minDeg, cx, cy){
+        hHand.untransform().rotate(hrDeg,  cx, cy);
+        mHand.untransform().rotate(minDeg, cx, cy);
+      }
+
+      function rotateSecond(secDeg, cx, cy){
+        sHand.untransform().rotate(secDeg,  cx, cy);
+      }
+
+      const api = { apply, rotate, rotateHourMinute, rotateSecond, rebuildPhysics, physics: null };
+
       function rebuildPhysics(scale, cx, cy){
-        if(hands.physics){
-          World.remove(engine.world, hands.physics.items);
+        if(api.physics){
+          World.remove(engine.world, api.physics.items);
         }
 
         const hourL = cfg.hand.hourL * scale;
         const minL = cfg.hand.minL * scale;
         const secL = cfg.hand.secL * scale;
 
-        const hourBody = Bodies.rectangle(cx, cy - hourL/2, cfg.hand.hourW * scale, hourL, { frictionAir: 0.2 });
-        const minBody = Bodies.rectangle(cx, cy - minL/2, cfg.hand.minW * scale, minL, { frictionAir: 0.2 });
-        const secBody = Bodies.rectangle(cx, cy - secL/2, cfg.hand.secW * scale, secL, { frictionAir: 0.2 });
+        const secBody = Bodies.rectangle(cx, cy - secL/2, cfg.hand.secW * scale, secL, { frictionAir: 0.25 });
 
-        const hourConstraint = Constraint.create({
-          pointA: { x: cx, y: cy },
-          bodyB: hourBody,
-          pointB: { x: 0, y: hourL/2 },
-          stiffness: 1,
-          damping: 0.2
-        });
-        const minConstraint = Constraint.create({
-          pointA: { x: cx, y: cy },
-          bodyB: minBody,
-          pointB: { x: 0, y: minL/2 },
-          stiffness: 1,
-          damping: 0.2
-        });
         const secConstraint = Constraint.create({
           pointA: { x: cx, y: cy },
           bodyB: secBody,
           pointB: { x: 0, y: secL/2 },
           stiffness: 1,
-          damping: 0.2
+          damping: 0.35
         });
 
-        const items = [hourBody, minBody, secBody, hourConstraint, minConstraint, secConstraint];
+        const items = [secBody, secConstraint];
         World.add(engine.world, items);
 
-        hands.physics = {
-          bodies: { hour: hourBody, minute: minBody, second: secBody },
+        api.physics = {
+          bodies: { second: secBody },
           items
         };
       }
 
-      return { apply, rotate, rebuildPhysics, physics: null };
+      return api;
     }
 
     const hands = createHands(draw);
+    const debug = {
+      targetLine: debugG.line(0,0,0,0).stroke({width:4, color:cfg.debug.targetColor}).opacity(0.9),
+      bodyLine: debugG.line(0,0,0,0).stroke({width:4, color:cfg.debug.bodyColor}).opacity(0.9),
+      targetDot: debugG.circle(10).fill(cfg.debug.targetColor).opacity(0.9),
+      bodyDot: debugG.circle(10).fill(cfg.debug.bodyColor).opacity(0.9),
+      infoText: debugG.text("debug: init").font({family:"ui-monospace, Menlo, Consolas, monospace", size:16, weight:600})
+        .fill("#1a1a1a")
+        .attr({x:12, y:12, "dominant-baseline":"hanging"})
+    };
+    let targetSecAngle = 0;
+
+    Events.on(engine, "beforeUpdate", () => {
+      if (!hands.physics) return;
+      const secBody = hands.physics.bodies.second;
+      const errRaw = wrapRad(targetSecAngle - secBody.angle);
+      const maxErr = degToRad(cfg.secSpring.maxErrDeg);
+      if (Math.abs(errRaw) > maxErr) {
+        Body.setAngle(secBody, targetSecAngle);
+        Body.setAngularVelocity(secBody, 0);
+        return;
+      }
+      if (errRaw < -degToRad(cfg.secSpring.leadSnapDeg)) {
+        Body.setAngle(secBody, targetSecAngle);
+        Body.setAngularVelocity(secBody, 0);
+        return;
+      }
+      if (errRaw > degToRad(cfg.secSpring.lagSnapDeg)) {
+        Body.setAngle(secBody, targetSecAngle);
+        Body.setAngularVelocity(secBody, 0);
+        return;
+      }
+      if (Math.abs(errRaw) < degToRad(cfg.secSpring.settleDeg)) {
+        Body.setAngle(secBody, targetSecAngle);
+        Body.setAngularVelocity(secBody, 0);
+        return;
+      }
+      const err = errRaw;
+      const torque = cfg.secSpring.k * err - cfg.secSpring.c * secBody.angularVelocity;
+      secBody.torque += torque;
+    });
 
     let lastAngles = { hrDeg: 0, minDeg: 0 };
 
@@ -639,10 +692,11 @@
       drawFrame();
       drawTicksAndNumbers();
       hands.apply(scale, cx, cy);
-      if (cfg.physicsEnabled) {
-        hands.rebuildPhysics(scale, cx, cy);
-      }
+      hands.rebuildPhysics(scale, cx, cy);
       applyDateLayout(scale);
+      debugG.opacity(cfg.debug.showSecTrace ? 1 : 0);
+      debugG.front();
+      debug.infoText.text(`debug: ${cfg.debug.showSecTrace ? "on" : "off"}`);
     }
 
     function applyDateLayout(scale){
@@ -665,23 +719,28 @@
     applyMetrics();
     window.addEventListener("resize", onResize);
 
-    if (cfg.physicsEnabled) {
-      let handsRaf = null;
-      function syncHandsFromPhysics(){
-        if(hands.physics){
-          const { hour, minute, second } = hands.physics.bodies;
-          hands.rotate(
-            radToDeg(hour.angle),
-            radToDeg(minute.angle),
-            radToDeg(second.angle),
-            metrics.cx,
-            metrics.cy
-          );
+    let handsRaf = null;
+    function syncHandsFromPhysics(){
+      if(hands.physics){
+        const { second } = hands.physics.bodies;
+        hands.rotateSecond(radToDeg(second.angle), metrics.cx, metrics.cy);
+
+        if(cfg.debug.showSecTrace){
+          const targetP = polar(radToDeg(targetSecAngle), dialR * 0.95);
+          const bodyP = polar(radToDeg(second.angle), dialR * 0.88);
+          debug.targetLine.plot(metrics.cx, metrics.cy, targetP.x, targetP.y);
+          debug.bodyLine.plot(metrics.cx, metrics.cy, bodyP.x, bodyP.y);
+          debug.targetDot.center(targetP.x, targetP.y);
+          debug.bodyDot.center(bodyP.x, bodyP.y);
+          const errDeg = radToDeg(wrapRad(targetSecAngle - second.angle));
+          debug.infoText.text(`physics: yes\nsec target: ${radToDeg(targetSecAngle).toFixed(1)}°\nsec body:   ${radToDeg(second.angle).toFixed(1)}°\nerror:      ${errDeg.toFixed(1)}°`);
         }
-        handsRaf = requestAnimationFrame(syncHandsFromPhysics);
+      }else if(cfg.debug.showSecTrace){
+        debug.infoText.text("physics: no");
       }
-      syncHandsFromPhysics();
+      handsRaf = requestAnimationFrame(syncHandsFromPhysics);
     }
+    syncHandsFromPhysics();
 
     /* ===== tick ===== */
     function updateHandsForDate(d){
@@ -694,13 +753,13 @@
       const secDeg = sec * 6;
 
       lastAngles = { hrDeg, minDeg };
-      if(cfg.physicsEnabled && hands.physics){
-        Body.setAngle(hands.physics.bodies.hour, degToRad(hrDeg));
-        Body.setAngle(hands.physics.bodies.minute, degToRad(minDeg));
-        Body.setAngle(hands.physics.bodies.second, degToRad(secDeg));
-        Body.setAngularVelocity(hands.physics.bodies.hour, 0);
-        Body.setAngularVelocity(hands.physics.bodies.minute, 0);
-        Body.setAngularVelocity(hands.physics.bodies.second, 0);
+      if(hands.physics){
+        hands.rotateHourMinute(hrDeg, minDeg, metrics.cx, metrics.cy);
+        targetSecAngle = degToRad(secDeg);
+        const secBody = hands.physics.bodies.second;
+        const err = wrapRad(targetSecAngle - secBody.angle);
+        const kick = Math.sign(err || 1) * cfg.secSpring.tickKick;
+        Body.setAngularVelocity(secBody, kick);
       }else{
         hands.rotate(hrDeg, minDeg, secDeg, metrics.cx, metrics.cy);
       }
