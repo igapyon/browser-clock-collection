@@ -97,9 +97,11 @@
         cardH: 72,
         cardGap: 14,
         cardY: 128,
-        dowFont: 36,
+        dowFont: 32,
+        ampmFont: 26,
         dowX: 11,
-        dowY: 15,
+        dowY: -4,
+        ampmY: 26,
         opticalNudge: 5,
         angleOffset: 10,
         radiusRatio: 0.32,
@@ -350,6 +352,7 @@
       let mm;
       let dd;
       let dowText;
+      let ampmText;
 
       function build(){
         dateRoot.clear();
@@ -395,6 +398,20 @@
             "text-anchor":"start",
             "dominant-baseline":"middle"
           });
+
+        ampmText = dateSvg.text("AM")
+          .font({
+            family:"'Hiragino Maru Gothic ProN','Rounded Mplus 1c','Yu Gothic UI','Meiryo',sans-serif",
+            size:cfgDate.ampmFont,
+            weight:600
+          })
+          .fill(theme.dateSub)
+          .attr({
+            x: x0 + cardW * 2 + gap + cfgDate.dowX,
+            y: y0 + cardH/2 + cfgDate.ampmY,
+            "text-anchor":"start",
+            "dominant-baseline":"middle"
+          });
       }
 
       build();
@@ -407,11 +424,17 @@
         else dowText.fill("rgba(0,0,0,.65)");
       }
 
+      function setAmPmLabel(d){
+        const isPm = d.getHours() >= 12;
+        ampmText.text(isPm ? "PM" : "AM");
+      }
+
       function setAllFields(d){
         yearText.text(d.getFullYear());
         mm.setValue(pad2(d.getMonth()+1));
         dd.setValue(pad2(d.getDate()));
         setDowLabel(d);
+        setAmPmLabel(d);
       }
 
       let lastDateKey = null;
@@ -432,6 +455,7 @@
           }
           yearText.text(d.getFullYear());
           setDowLabel(d);
+          setAmPmLabel(d);
           lastDateKey = k;
         }
       }
@@ -465,6 +489,9 @@
 
       return {
         updateDateIfNeeded,
+        updateTimeFields(d){
+          setAmPmLabel(d);
+        },
         placeDateOutsideAngle,
         setScale(scale){
           dateInner.untransform().scale(scale * DATE_SCALE);
@@ -580,6 +607,7 @@
       updateHandsForDate(d);
       applyDateLayout(metrics.scale);
       dateMini.updateDateIfNeeded(d);
+      dateMini.updateTimeFields(d);
 
       setTimeout(tickAlignedOncePerSecond, 1000 - d.getMilliseconds());
     }
