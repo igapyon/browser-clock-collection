@@ -93,7 +93,9 @@
         c: 0.06,
         tickKick: 0.1,
         maxErrDeg: 6,
-        leadSnapDeg: 2
+        leadSnapDeg: 2,
+        lagSnapDeg: 4,
+        settleDeg: 1.5
       }),
       debug: Object.freeze({
         showSecTrace: true,
@@ -662,6 +664,16 @@
         return;
       }
       if (errRaw < -degToRad(cfg.secSpring.leadSnapDeg)) {
+        Body.setAngle(secBody, targetSecAngle);
+        Body.setAngularVelocity(secBody, 0);
+        return;
+      }
+      if (errRaw > degToRad(cfg.secSpring.lagSnapDeg)) {
+        Body.setAngle(secBody, targetSecAngle);
+        Body.setAngularVelocity(secBody, 0);
+        return;
+      }
+      if (Math.abs(errRaw) < degToRad(cfg.secSpring.settleDeg)) {
         Body.setAngle(secBody, targetSecAngle);
         Body.setAngularVelocity(secBody, 0);
         return;
