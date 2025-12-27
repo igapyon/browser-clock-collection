@@ -1,7 +1,7 @@
 # Browser Clock Collection
 
 ブラウザで動く時計（アナログ／フリップ）の作例集です。見た目と動きの作り込みを重視しています。
-現在の作業の核は `src/clock-analog-svg.html` です。
+現在の作業の核は `src/clock-analog-svg.html` です。秒単位の更新に絞り、日付やレイアウトは変化時のみ再計算することで、CPU負荷を最小限に抑えています。
 プロジェクトはGitHub上で作業しています: https://github.com/igapyon/browser-clock-collection
 
 ## 収録時計
